@@ -1,0 +1,17 @@
+<package>
+  <description brief="polar_scan_matcher">
+
+    A wrapper around Albert Diosi's Polar Scan Matcher implementation, used for laser scan registration.
+
+  </description>
+  <author>Ivan Dryanovski</author>
+  <license>GPL</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/polar_scan_matcher</url>
+  <depend package="tf"/>
+  <depend package="roscpp"/>
+  <depend package="sensor_msgs"/>
+  <depend package="geometry_msgs"/>
+</package>
+
+
