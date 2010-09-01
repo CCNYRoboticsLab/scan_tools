@@ -39,17 +39,70 @@ PSMNode::PSMNode()
 {
   ROS_INFO("Creating PolarScanMatching node");
 
+  ros::NodeHandle nh;
+
   initialized_   = false;
   totalDuration_ = 0.0;
   scansCount_    = 0;
 
   prevWorldToBase_.setIdentity();
 
-  ros::NodeHandle nh;
+  getParams();  
+
+  scanSubscriber_ = nh.subscribe (scanTopic_, 10, &PSMNode::scanCallback, this);
+  imuSubscriber_  = nh.subscribe (imuTopic_,  10, &PSMNode::imuCallback,  this);
+  posePublisher_  = nh.advertise<geometry_msgs::Pose2D>(poseTopic_, 10);
+}
+
+PSMNode::~PSMNode()
+{
+  ROS_INFO("Destroying PolarScanMatching node");
+}
+
+void PSMNode::getParams()
+{
   ros::NodeHandle nh_private("~");
 
-  // **** get parameters
+  std::string odometryType;
+
+  // **** wrapper parameters
   
+  if (!nh_private.getParam ("world_frame", worldFrame_))
+    worldFrame_ = "world";
+  if (!nh_private.getParam ("base_frame", baseFrame_))
+    baseFrame_ = "base_link";
+  if (!nh_private.getParam ("publish_tf", publishTf_))
+    publishTf_ = true;
+  if (!nh_private.getParam ("publish_pose", publishPose_))
+    publishPose_ = true;
+  if (!nh_private.getParam ("odometry_type", odometryType))
+    odometryType = "none";
+
+  if (odometryType.compare("none") == 0)
+  {
+    useTfOdometry_  = false;
+    useImuOdometry_ = false;
+  }
+  else if (odometryType.compare("tf") == 0)
+  {
+    useTfOdometry_  = true;
+    useImuOdometry_ = false;
+  }
+  else if (odometryType.compare("imu") == 0)
+  {
+    useTfOdometry_  = false;
+    useImuOdometry_ = true;
+  }
+  else
+  {
+    ROS_WARN("Unknown value of odometry_type parameter passed to psm_node. \
+              Using default value (\"none\")");
+    useTfOdometry_  = false;
+    useImuOdometry_ = false;
+  }
+
+  // **** PSM parameters
+
   if (!nh_private.getParam ("min_valid_points", minValidPoints_))
     minValidPoints_ = 200;
   if (!nh_private.getParam ("search_window", searchWindow_))
@@ -60,27 +113,6 @@ PSMNode::PSMNode()
     maxIterations_ = 20;
   if (!nh_private.getParam ("stop_condition", stopCondition_))
     stopCondition_ = 0.01;
-  if (!nh_private.getParam ("world_frame", worldFrame_))
-    worldFrame_ = "world";
-  if (!nh_private.getParam ("base_frame", baseFrame_))
-    baseFrame_ = "base_link";
-  if (!nh_private.getParam ("publish_tf", publishTf_))
-    publishTf_ = true;
-  if (!nh_private.getParam ("publish_pose", publishPose_))
-    publishPose_ = true;
-  if (!nh_private.getParam ("use_odometry", useOdometry_))
-    useOdometry_ = false;
-
-  // **** subscribe to laser scan messages
-  scanSubscriber_ = nh.subscribe (scanTopic_, 10, &PSMNode::scanCallback, this);
-
-  // **** advertise pose messages
-  posePublisher_ = nh.advertise<geometry_msgs::Pose2D>(poseTopic_, 10);
-}
-
-PSMNode::~PSMNode()
-{
-  ROS_INFO("Destroying PolarScanMatching node");
 }
 
 bool PSMNode::initialize(const sensor_msgs::LaserScan& scan)
@@ -137,6 +169,16 @@ bool PSMNode::initialize(const sensor_msgs::LaserScan& scan)
   return true;
 }
 
+void PSMNode::imuCallback (const sensor_msgs::Imu& imuMsg)
+{
+  imuMutex_.lock();
+  btQuaternion q(imuMsg.orientation.x, imuMsg.orientation.y, imuMsg.orientation.z, imuMsg.orientation.w);
+  btMatrix3x3 m(q);
+  double temp;
+  m.getRPY(temp, temp, currImuAngle_);
+  imuMutex_.unlock();
+}
+
 void PSMNode::scanCallback(const sensor_msgs::LaserScan& scan)
 {
   ROS_DEBUG("Received scan");
@@ -168,9 +210,10 @@ void PSMNode::scanCallback(const sensor_msgs::LaserScan& scan)
 
   btTransform currWorldToBase;
   btTransform change;
+  change.setIdentity();
 
-  // use odometry model or not?
-  if (useOdometry_) 
+  // what odometry model to use
+  if (useTfOdometry_) 
   {
     // get the current position of the base in the world frame
     // if no transofrm is available, we'll use the last known transform
@@ -178,8 +221,14 @@ void PSMNode::scanCallback(const sensor_msgs::LaserScan& scan)
     getCurrentEstimatedPose(currWorldToBase, scan);
     change = laserToBase_ * prevWorldToBase_.inverse() * currWorldToBase * baseToLaser_;
   }
-  else
-    change.setIdentity();
+  else if (useImuOdometry_)
+  {
+    imuMutex_.lock();
+    double dTheta = currImuAngle_ - prevImuAngle_;
+    prevImuAngle_ = currImuAngle_;
+    change.getRotation().setRPY(0.0, 0.0, dTheta);
+    imuMutex_.unlock();
+  }
 
   PMScan * currPMScan = new PMScan(scan.ranges.size());
   rosToPMScan(scan, change, currPMScan);

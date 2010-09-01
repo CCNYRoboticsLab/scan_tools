@@ -32,13 +32,15 @@
 #include <sys/time.h>
 
 #include <ros/ros.h>
-#include <sensor_msgs/LaserScan.h>
-#include <geometry_msgs/Pose2D.h>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_listener.h>
+#include <sensor_msgs/LaserScan.h>
+#include <sensor_msgs/Imu.h>
+#include <geometry_msgs/Pose2D.h>
 
 #include "polar_scan_matcher/polar_match.h"
 
+const std::string imuTopic_  = "imu";
 const std::string scanTopic_ = "scan";
 const std::string poseTopic_ = "pose2D";
 
@@ -48,41 +50,50 @@ class PSMNode
 {
   private:
 
-    PolarMatcher matcher_;
-
     ros::Subscriber scanSubscriber_;
+    ros::Subscriber imuSubscriber_;
     ros::Publisher  posePublisher_;
+
     tf::TransformBroadcaster tfBroadcaster_;
     tf::TransformListener    tfListener_;
+    btTransform prevWorldToBase_;
+    btTransform baseToLaser_;
+    btTransform laserToBase_;
 
     bool initialized_;
     double totalDuration_;
     int scansCount_;
-    PMScan * prevPMScan_;
-    btTransform prevWorldToBase_;
 
-    btTransform baseToLaser_;
-    btTransform laserToBase_;
+    PolarMatcher matcher_;
+    PMScan * prevPMScan_;
+
+    boost::mutex imuMutex_;
+    double prevImuAngle_;   // the yaw angle when we last perfomred a scan match
+    double currImuAngle_;   // the most recent yaw angle we have received
 
     // **** parameters
+
+    bool   publishTf_;
+    bool   publishPose_;
+    bool   useTfOdometry_;
+    bool   useImuOdometry_;
 
     int    minValidPoints_;
     int    searchWindow_;
     double maxError_;
     int    maxIterations_;
     double stopCondition_;
-    bool   publishTf_;
-    bool   publishPose_;
-    bool   useOdometry_;
 
     std::string worldFrame_;
     std::string baseFrame_;
     std::string laserFrame_;
 
+    void getParams();
     bool initialize(const sensor_msgs::LaserScan& scan);
+
+    void imuCallback (const sensor_msgs::Imu& imuMsg);
     void scanCallback (const sensor_msgs::LaserScan& scan);
-    void getCurrentEstimatedPose(btTransform& worldToBase, 
-                                 const sensor_msgs::LaserScan& scanMsg);
+
     void publishTf(const btTransform& transform, 
                    const ros::Time& time);
     void publishPose(const btTransform& transform);
@@ -92,6 +103,8 @@ class PSMNode
                            PMScan* pmScan);
     void pose2DToTf(const geometry_msgs::Pose2D& pose, btTransform& t);
     void tfToPose2D(const btTransform& t, geometry_msgs::Pose2D& pose);
+    void getCurrentEstimatedPose(btTransform& worldToBase, 
+                                 const sensor_msgs::LaserScan& scanMsg);
 
   public:
 
