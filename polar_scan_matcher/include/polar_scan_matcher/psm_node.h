@@ -18,7 +18,8 @@
 *  You should have received a copy of the GNU General Public License
 *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *
-*  Polar Scan Matcher [1] algorithm written by A. Diosi
+*  This is a wrapper around Polar Scan Matcher [1], written by 
+*  Albert Diosi
 *
 *  [1] A. Diosi and L. Kleeman, "Laser Scan Matching in Polar Coordinates with 
 *  Application to SLAM " Proceedings of 2005 IEEE/RSJ International Conference 

@@ -1,5 +1,5 @@
 /*
-*  Polar Scan Matching
+*  Polar Scan Matcher
 *  Copyright (C) 2010, CCNY Robotics Lab
 *  Ivan Dryanovski <ivan.dryanovski@gmail.com>
 *  William Morris <morris@ee.ccny.cuny.edu>
@@ -18,7 +18,8 @@
 *  You should have received a copy of the GNU General Public License
 *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *
-*  Polar Scan Matching [1] algorithm written by A. Diosi
+*  This is a wrapper around Polar Scan Matcher [1], written by 
+*  Albert Diosi
 *
 *  [1] A. Diosi and L. Kleeman, "Laser Scan Matching in Polar Coordinates with 
 *  Application to SLAM " Proceedings of 2005 IEEE/RSJ International Conference 
