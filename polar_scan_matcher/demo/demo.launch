@@ -6,7 +6,7 @@
     args="-d $(find polar_scan_matcher)/demo/demo.vcg"/>
 
   <node pkg="rosbag" type="rosbag" name="rosbag" 
-    args="play $(find polar_scan_matcher)/demo/demo.bag --clock"/>
+    args="play $(find polar_scan_matcher)/demo/demo.bag --delay=5 --clock"/>
 
   <node pkg="polar_scan_matcher" type="psm_node" name="psm_node" output="screen">
     <param name="max_error" value="0.20"/>
