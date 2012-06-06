@@ -1,0 +1,14 @@
+<stack>
+  <description brief="scan_tools">Scan Manipulation Tools</description>
+  <author>Maintained by Ivan Dryanovski, William Morris, Gautier Dumonteil et al</author>
+  <license>BSD,LGPLv3</license>  
+  <review status="experimental" notes=""/>
+  <url>http://ros.org/wiki/scan_tools</url>
+  <depend stack="common" /> <!-- nodelet -->
+  <depend stack="common_msgs" /> <!-- nav_msgs, geometry_msgs, sensor_msgs -->
+  <depend stack="geometry" /> <!-- tf -->
+  <depend stack="perception_pcl" /> <!-- pcl, pcl_ros -->
+  <depend stack="ros" />
+  <depend stack="ros_comm" /> <!-- roscpp, message_filters -->
+
+</stack>

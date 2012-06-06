@@ -1,0 +1,17 @@
+<package>
+  <description brief="ncd_parser">
+
+     The ncd_parser package reads in .alog data files from the New College Dataset and broadcasts scan and odometry messages to ROS.
+
+  </description>
+  <author>Ivan Dryanovski</author>
+  <license url="http://www.opensource.org/licenses/BSD-3-Clause">BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/ncd_parser</url>
+  <depend package="tf"/>
+  <depend package="geometry_msgs"/> 
+  <depend package="sensor_msgs"/> 
+
+</package>
+
+

@@ -1,0 +1,22 @@
+<package>
+  <description brief="laser_scan_splitter">
+
+  The laser_scan_splitter takes in a LaserScan message and splits it into a number of other LaserScan messages. Each of the resulting laser scans can be assigned an arbitrary coordinate frame, and is published on a separate topic.
+
+  </description>
+  <author>Ivan Dryanovski, William Morris</author>
+  <license url="http://www.opensource.org/licenses/BSD-3-Clause">BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/laser_scan_splitter</url>
+  <depend package="roscpp"/>
+  <depend package="nodelet"/>
+  <depend package="sensor_msgs"/>
+  <depend package="tf"/>
+
+  <export>
+    <nodelet plugin="${prefix}/laser_scan_splitter_nodelet.xml" />
+  </export>
+
+</package>
+
+

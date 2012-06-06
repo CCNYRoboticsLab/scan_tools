@@ -1,0 +1,27 @@
+<package>
+  <description brief="laser_ortho_projector">
+
+  The laser_ortho_projector package calculates orthogonal projections of LaserScan messages. 
+
+  </description>
+  <author>Ivan Dryanovski, William Morris</author>
+  <license url="http://www.opensource.org/licenses/BSD-3-Clause">BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/laser_ortho_projector</url>
+
+  <depend package="roscpp"/>
+  <depend package="nodelet"/>
+  <depend package="sensor_msgs"/> 
+  <depend package="pcl"/>
+  <depend package="pcl_ros"/>
+  <depend package="geometry_msgs"/> 
+  <depend package="message_filters"/>
+  <depend package="tf"/> 
+
+  <export>
+    <nodelet plugin="${prefix}/laser_ortho_projector_nodelet.xml" />
+  </export>
+
+</package>
+
+

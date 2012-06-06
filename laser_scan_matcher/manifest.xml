@@ -1,0 +1,30 @@
+<package>
+  <description brief="laser_scan_matcher">
+
+     An incremental laser scan matcher, using Andrea Censi's Canonical Scan Matcher implementation.
+     More about CSM: http://www.cds.caltech.edu/~andrea/research/sw/csm.html
+
+  </description>
+  <author>Ivan Dryanovski, William Morris</author>
+  <license url="http://www.opensource.org/licenses/BSD-3-Clause">BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/laser_scan_matcher</url>
+  <depend package="roscpp"/>
+  <depend package="nodelet"/>
+  <depend package="sensor_msgs"/>
+  <depend package="tf"/>
+  <depend package="pcl"/>
+  <depend package="pcl_ros"/>
+  <depend package="geometry_msgs"/>
+  <depend package="nav_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="csm"/>
+
+  <export>
+    <nodelet plugin="${prefix}/laser_scan_matcher_nodelet.xml" />
+    <cpp cflags="-I${prefix}/include -I${prefix}/msg_gen/cpp/include"/>
+  </export>
+
+</package>
+
+
