@@ -1,3 +1,7 @@
 gsl:
-  ubuntu: libgsl0-dev
+  ubuntu:
+    apt:
+      packages: [libgsl0-dev]
   debian: libgsl0-dev
+
+
