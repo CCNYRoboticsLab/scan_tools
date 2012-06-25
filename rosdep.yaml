@@ -1,4 +1,4 @@
-gsl:
+libgsl:
   ubuntu:
     apt:
       packages: [libgsl0-dev]

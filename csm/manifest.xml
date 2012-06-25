@@ -10,7 +10,7 @@
   <license url="http://www.gnu.org/licenses/lgpl-3.0.txt">LGPLv3</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/csm</url>
-  <rosdep name="gsl"/>
+  <rosdep name="libgsl"/>
 
 </package>
 
