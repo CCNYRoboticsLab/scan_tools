@@ -35,11 +35,13 @@
 
 namespace scan_tools {
 
-const std::string sub_scan_topic_ = "scan";
-const std::string pub_scan_topic_ = "scan_sparse";
-
 class LaserScanSparsifier
 {
+  public:
+
+    LaserScanSparsifier(ros::NodeHandle nh, ros::NodeHandle nh_private);
+    virtual ~LaserScanSparsifier();
+
   private:
 
     // **** ROS-related
@@ -50,16 +52,11 @@ class LaserScanSparsifier
 
     // **** paramaters
 
-    int skip_;
+    int step_;
 
     // **** member functions
 
     void scanCallback(const sensor_msgs::LaserScanConstPtr& scan_msg);
-
-  public:
-
-    LaserScanSparsifier(ros::NodeHandle nh, ros::NodeHandle nh_private);
-    virtual ~LaserScanSparsifier();
 };
 
 } //namespace scan_tools

@@ -39,18 +39,21 @@ LaserScanSparsifier::LaserScanSparsifier(ros::NodeHandle nh, ros::NodeHandle nh_
 
   // **** get paramters
 
-  if (!nh_private_.getParam ("skip", skip_))
-    skip_ = 2;
+  if (!nh_private_.getParam ("step", step_))
+    step_ = 2;
+
+  ROS_ASSERT_MSG(step_ > 0,
+    "step parameter is set to %, must be > 0", step_);
 
   // **** advertise topics
 
   scan_publisher_ = nh_.advertise<sensor_msgs::LaserScan>(
-    pub_scan_topic_, 10);
+    "scan_sparse", 10);
 
   // **** subscribe to laser scan messages
 
   scan_subscriber_ = nh_.subscribe(
-    sub_scan_topic_, 10, &LaserScanSparsifier::scanCallback, this);
+    "scan", 10, &LaserScanSparsifier::scanCallback, this);
 }
 
 LaserScanSparsifier::~LaserScanSparsifier ()
@@ -69,13 +72,13 @@ void LaserScanSparsifier::scanCallback (const sensor_msgs::LaserScanConstPtr& sc
   scan_sparse->range_min       = scan_msg->range_min;
   scan_sparse->range_max       = scan_msg->range_max;
   scan_sparse->angle_min       = scan_msg->angle_min;
-  scan_sparse->angle_increment = scan_msg->angle_increment * skip_;
+  scan_sparse->angle_increment = scan_msg->angle_increment * step_;
   scan_sparse->time_increment  = scan_msg->time_increment;
   scan_sparse->scan_time       = scan_msg->scan_time;
 
   // determine size of new scan
 
-  unsigned int size_sparse = scan_msg->ranges.size() / skip_;
+  unsigned int size_sparse = scan_msg->ranges.size() / step_;
   scan_sparse->ranges.resize(size_sparse);
 
   // determine new maximum angle
@@ -85,7 +88,7 @@ void LaserScanSparsifier::scanCallback (const sensor_msgs::LaserScanConstPtr& sc
 
   for (unsigned int i = 0; i < size_sparse; i++)
   {
-    scan_sparse->ranges[i] = scan_msg->ranges[i * skip_];
+    scan_sparse->ranges[i] = scan_msg->ranges[i * step_];
     // TODO - also copy intensity values
   }
 
