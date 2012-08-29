@@ -48,13 +48,18 @@
 
 namespace scan_tools {
 
-static const std::string scan_topic_ = "scan";
-static const std::string cloud_topic_ = "cloud_ortho";
-
 class LaserOrthoProjector
 {
   typedef pcl::PointXYZ           PointT;
   typedef pcl::PointCloud<PointT> PointCloudT;
+
+  typedef geometry_msgs::PoseStamped PoseMsg;
+  typedef sensor_msgs::Imu ImuMsg;
+
+  public:
+
+    LaserOrthoProjector (ros::NodeHandle nh, ros::NodeHandle nh_private);
+    virtual ~ LaserOrthoProjector ();
 
   private:
 
@@ -80,6 +85,7 @@ class LaserOrthoProjector
 
     bool publish_tf_;
     bool use_pose_;
+    bool use_imu_;
 
     // **** state variables
 
@@ -94,15 +100,13 @@ class LaserOrthoProjector
     tf::Transform ortho_to_laser_; // computed from b2l, w2b, w2o
 
     void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg);
-    void poseCallback (const geometry_msgs::PoseStamped::ConstPtr& pose_msg);
+    void poseCallback (const PoseMsg::ConstPtr& pose_msg);
+    void imuCallback  (const ImuMsg::ConstPtr& imu_msg);
     void getOrthoTf(const tf::Transform& world_to_base, tf::Transform& world_to_ortho);
     bool getBaseToLaserTf (const sensor_msgs::LaserScan::ConstPtr& scan_msg);
     void createCache (const sensor_msgs::LaserScan::ConstPtr& scan_msg);
 
-  public:
 
-    LaserOrthoProjector (ros::NodeHandle nh, ros::NodeHandle nh_private);
-    virtual ~ LaserOrthoProjector ();
 };
 
 } // namespace scan_tools

@@ -59,22 +59,35 @@ LaserOrthoProjector::LaserOrthoProjector (ros::NodeHandle nh, ros::NodeHandle nh
     publish_tf_ = false;
   if (!nh_private_.getParam ("use_pose", use_pose_))
     use_pose_ = true;
+  if (!nh_private_.getParam ("use_imu", use_imu_))
+    use_imu_ = false;
+
+  if (use_imu_ && use_pose_)
+    ROS_FATAL("use_imu and use_pose params cannot both be true");
+  if (!use_imu_ && !use_pose_)
+    ROS_FATAL("use_imu and use_pose params cannot both be false");
+
 
   // **** subscribe to laser scan messages
 
   scan_subscriber_ = nh_.subscribe(
-    scan_topic_, 10, &LaserOrthoProjector::scanCallback, this);
+    "scan", 10, &LaserOrthoProjector::scanCallback, this);
 
   if (use_pose_)
   {
     pose_subscriber_ = nh_.subscribe(
       "pose", 10, &LaserOrthoProjector::poseCallback, this);
   }
+  if (use_imu_)
+  {
+    imu_subscriber_ = nh_.subscribe(
+      "imu/data", 10, &LaserOrthoProjector::imuCallback, this);
+  }
 
   // **** advertise orthogonal scan
 
   cloud_publisher_ = nh_.advertise<PointCloudT>(
-    cloud_topic_, 10);
+    "cloud_ortho", 10);
 }
 
 LaserOrthoProjector::~LaserOrthoProjector()
@@ -82,7 +95,32 @@ LaserOrthoProjector::~LaserOrthoProjector()
 
 }
 
-void LaserOrthoProjector::poseCallback(const geometry_msgs::PoseStamped::ConstPtr& pose_msg)
+void LaserOrthoProjector::imuCallback(const ImuMsg::ConstPtr& imu_msg)
+{
+  // obtain world to base frame transform from the pose message
+  tf::Transform world_to_base;
+  world_to_base.setIdentity();
+  
+  tf::Quaternion q;
+  tf::quaternionMsgToTF(imu_msg->orientation, q);
+  world_to_base.setRotation(q);
+
+  // calculate world to ortho frame transform
+  tf::Transform world_to_ortho;
+  getOrthoTf(world_to_base, world_to_ortho);
+  
+  if (publish_tf_)
+  {
+    tf::StampedTransform world_to_ortho_tf(
+      world_to_ortho, imu_msg->header.stamp, world_frame_, ortho_frame_);
+    tf_broadcaster_.sendTransform(world_to_ortho_tf);
+  }
+
+  // calculate ortho to laser tf, and save it for when scans arrive
+  ortho_to_laser_ = world_to_ortho.inverse() * world_to_base * base_to_laser_;
+}
+
+void LaserOrthoProjector::poseCallback(const PoseMsg::ConstPtr& pose_msg)
 {
   // obtain world to base frame transform from the pose message
   tf::Transform world_to_base;
@@ -94,7 +132,8 @@ void LaserOrthoProjector::poseCallback(const geometry_msgs::PoseStamped::ConstPt
   
   if (publish_tf_)
   {
-    tf::StampedTransform world_to_ortho_tf(world_to_ortho, pose_msg->header.stamp, world_frame_, ortho_frame_);
+    tf::StampedTransform world_to_ortho_tf(
+      world_to_ortho, pose_msg->header.stamp, world_frame_, ortho_frame_);
     tf_broadcaster_.sendTransform(world_to_ortho_tf);
   }
 
