@@ -1,7 +1,7 @@
 <package>
   <description brief="scan_to_cloud_converter">
 
-     scan_to_cloud_converter
+     Converts LaserScan to PointCloud messages.
 
   </description>
   <author>Ivan Dryanovski</author>
@@ -12,7 +12,6 @@
   <depend package="sensor_msgs"/>
   <depend package="pcl"/>
   <depend package="pcl_ros"/>
-
 
 </package>
 
