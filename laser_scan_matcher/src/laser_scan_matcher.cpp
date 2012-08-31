@@ -92,7 +92,7 @@ LaserScanMatcher::LaserScanMatcher(ros::NodeHandle nh, ros::NodeHandle nh_privat
   if (use_imu_)
   {
     imu_subscriber_ = nh_.subscribe(
-      "imu", 1, &LaserScanMatcher::imuCallback, this);
+      "imu/data", 1, &LaserScanMatcher::imuCallback, this);
   }
   if (use_odom_)
   {
