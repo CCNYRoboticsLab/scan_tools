@@ -12,8 +12,8 @@ together with an alpha-beta filter.
   <node pkg="rviz" type="rviz" name="rviz" 
     args="-d $(find laser_scan_matcher)/demo/demo.vcg"/>
 
-  <node pkg="rosbag" type="rosbag" name="rosbag" 
-    args="play $(find laser_scan_matcher)/demo/demo.bag --delay=5 --clock"/>
+  <node pkg="rosbag" type="play" name="play" 
+    args="$(find laser_scan_matcher)/demo/demo.bag --delay=5 --clock"/>
 
   #### publish an example base_link -> laser transform ###########
 
