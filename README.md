@@ -1,4 +1,4 @@
-laser scan tools for ROS
+Laser scan tools for ROS
 ===================================
 
 Overview
