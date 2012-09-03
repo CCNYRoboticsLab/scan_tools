@@ -1,5 +1,5 @@
 <stack>
-  <description brief="scan_tools">Scan Manipulation Tools</description>
+  <description brief="scan_tools">Laser scan processing tools</description>
   <author>Maintained by Ivan Dryanovski, William Morris, Gautier Dumonteil et al</author>
   <license>BSD,LGPLv3</license>  
   <review status="experimental" notes=""/>
