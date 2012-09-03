@@ -1,10 +1,10 @@
 <!-- 
-Launches the scan matcher with pre-recorded data
+Example launch file: launches the scan matcher with pre-recorded data
 -->
 
 <launch>
 
-  #### Data playback ###########################################################
+  #### set up data playback from bag #############################
 
   <param name="/use_sim_time" value="true"/>
 
@@ -14,12 +14,12 @@ Launches the scan matcher with pre-recorded data
   <node pkg="rosbag" type="rosbag" name="rosbag" 
     args="play $(find laser_scan_matcher)/demo/demo.bag --delay=5 --clock"/>
 
-  #### Static Tf's ###########################################################
+  #### publish an example base_link -> laser transform ###########
 
   <node pkg="tf" type="static_transform_publisher" name="base_link_to_laser" 
     args="0.0 0.0 0.0 0.0 0.0 0.0 /base_link /laser 40" />
 
-  #### Laser Scan Matcher ###########################################################
+  #### start the laser scan_matcher ##############################
 
   <node pkg="laser_scan_matcher" type="laser_scan_matcher_node" 
     name="laser_scan_matcher_node" output="screen">
