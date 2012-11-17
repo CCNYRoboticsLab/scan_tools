@@ -73,7 +73,7 @@ LaserScanMatcher::LaserScanMatcher(ros::NodeHandle nh, ros::NodeHandle nh_privat
   if (publish_pose_stamped_)
   {
     pose_stamped_publisher_ = nh_.advertise<geometry_msgs::PoseStamped>(
-      "pose2D_stamped", 5);
+      "pose_stamped", 5);
   }
 
   // *** subscribers
