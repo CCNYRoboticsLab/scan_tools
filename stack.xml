@@ -4,7 +4,7 @@
   <license>BSD,LGPLv3</license>  
   <review status="experimental" notes=""/>
   <url>http://ros.org/wiki/scan_tools</url>
-  <version>1.2.0</version>
+  <version>0.1.0</version>
   <depend stack="common" /> <!-- nodelet -->
   <depend stack="common_msgs" /> <!-- nav_msgs, geometry_msgs, sensor_msgs -->
   <depend stack="geometry" /> <!-- tf -->
