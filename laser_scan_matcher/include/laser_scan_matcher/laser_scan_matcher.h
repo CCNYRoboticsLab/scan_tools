@@ -97,6 +97,7 @@ class LaserScanMatcher
     std::string fixed_frame_;
     double cloud_range_min_;
     double cloud_range_max_;
+    double cloud_res_;
     bool publish_tf_;
     bool publish_pose_;
     bool publish_pose_stamped_;

@@ -38,7 +38,6 @@ together with an alpha-beta filter.
     <remap from="mav/pose2D"      to="pose_2D"/>
     <remap from="mav/pose2D_f"    to="pose2D_f"/>
     <remap from="mav/pose2D_unf"  to="pose2D_unf"/>
-    <remap from="mav/pose2D_unf"  to="pose2D_unf"/>
 
     <param name="alpha" value="1.0"/>
     <param name="beta"  value="0.5"/>

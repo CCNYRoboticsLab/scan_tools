@@ -36,6 +36,7 @@
  */
 
 #include "laser_scan_matcher/laser_scan_matcher.h"
+#include <pcl/filters/voxel_grid.h>
 
 namespace scan_tools
 {
@@ -131,6 +132,8 @@ void LaserScanMatcher::initParams()
       cloud_range_min_ = 0.1;
     if (!nh_private_.getParam ("cloud_range_max", cloud_range_max_))
       cloud_range_max_ = 50.0;
+    if (!nh_private_.getParam ("cloud_res", cloud_res_))
+      cloud_res_ = 0.05;
 
     input_.min_reading = cloud_range_min_;
     input_.max_reading = cloud_range_max_;
@@ -505,22 +508,29 @@ bool LaserScanMatcher::newKeyframeNeeded(const tf::Transform& d)
 void LaserScanMatcher::PointCloudToLDP(const PointCloudT::ConstPtr& cloud,
                                              LDP& ldp)
 {
+  pcl::VoxelGrid<PointT> vgf;
+
+  PointCloudT cloud_f;
+
+  vgf.setLeafSize(cloud_res_, cloud_res_, cloud_res_);
+  vgf.setInputCloud(cloud);
+  vgf.filter(cloud_f);
+
   unsigned int n = cloud->width * cloud->height ;
   ldp = ld_alloc_new(n);
 
   for (unsigned int i = 0; i < n; i++)
   {
     // calculate position in laser frame
-
-    if (is_nan(cloud->points[i].x) || is_nan(cloud->points[i].y))
+    if (is_nan(cloud_f.points[i].x) || is_nan(cloud_f.points[i].y))
     {
       ROS_WARN("Laser Scan Matcher: Cloud input contains NaN values. \
                 Please use a filtered cloud input.");
     }
     else
     {
-      double r = sqrt(cloud->points[i].x * cloud->points[i].x + 
-                      cloud->points[i].y * cloud->points[i].y);
+      double r = sqrt(cloud_f.points[i].x * cloud_f.points[i].x + 
+                      cloud_f.points[i].y * cloud_f.points[i].y);
       
       if (r > cloud_range_min_ && r < cloud_range_max_)
       {
@@ -534,7 +544,7 @@ void LaserScanMatcher::PointCloudToLDP(const PointCloudT::ConstPtr& cloud,
       }
     }
 
-    ldp->theta[i] = atan2(cloud->points[i].y, cloud->points[i].x);
+    ldp->theta[i] = atan2(cloud_f.points[i].y, cloud_f.points[i].x);
     ldp->cluster[i]  = -1;
   }
 
