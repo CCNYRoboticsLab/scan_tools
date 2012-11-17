@@ -50,6 +50,7 @@
 #include <tf/transform_broadcaster.h>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
+#include <pcl/filters/voxel_grid.h>
 #include <pcl_ros/point_cloud.h>
 
 #include <csm/csm_all.h>  // csm defines min and max, but Eigen complains

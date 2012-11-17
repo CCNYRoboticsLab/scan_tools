@@ -36,7 +36,6 @@
  */
 
 #include "laser_scan_matcher/laser_scan_matcher.h"
-#include <pcl/filters/voxel_grid.h>
 
 namespace scan_tools
 {
