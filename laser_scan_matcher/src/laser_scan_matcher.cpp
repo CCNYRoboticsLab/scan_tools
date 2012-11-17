@@ -72,7 +72,7 @@ LaserScanMatcher::LaserScanMatcher(ros::NodeHandle nh, ros::NodeHandle nh_privat
 
   if (publish_pose_stamped_)
   {
-    pose_stamped_publisher_ = nh_.advertise<laser_scan_matcher::Pose2DStamped>(
+    pose_stamped_publisher_ = nh_.advertise<geometry_msgs::PoseStamped>(
       "pose2D_stamped", 5);
   }
 
@@ -449,15 +449,13 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
     if (publish_pose_stamped_)
     {
       // stamped Pose message
-      laser_scan_matcher::Pose2DStamped::Ptr pose_stamped_msg;
-      pose_stamped_msg = boost::make_shared<laser_scan_matcher::Pose2DStamped>();
+      geometry_msgs::PoseStamped::Ptr pose_stamped_msg;
+      pose_stamped_msg = boost::make_shared<geometry_msgs::PoseStamped>();
 
       pose_stamped_msg->header.stamp    = time;
       pose_stamped_msg->header.frame_id = fixed_frame_;     
-      
-      pose_stamped_msg->pose.x = f2b_.getOrigin().getX();
-      pose_stamped_msg->pose.y = f2b_.getOrigin().getY();
-      pose_stamped_msg->pose.theta = tf::getYaw(f2b_.getRotation());
+            
+      tf::poseTFToMsg(f2b_, pose_stamped_msg->pose);
 
       pose_stamped_publisher_.publish(pose_stamped_msg);
     }
