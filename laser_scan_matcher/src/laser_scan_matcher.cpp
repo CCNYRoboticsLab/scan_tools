@@ -131,6 +131,8 @@ void LaserScanMatcher::initParams()
       cloud_range_min_ = 0.1;
     if (!nh_private_.getParam ("cloud_range_max", cloud_range_max_))
       cloud_range_max_ = 50.0;
+    if (!nh_private_.getParam ("cloud_res", cloud_res_))
+      cloud_res_ = 0.05;
 
     input_.min_reading = cloud_range_min_;
     input_.max_reading = cloud_range_max_;
@@ -149,8 +151,8 @@ void LaserScanMatcher::initParams()
   // **** What predictions are available to speed up the ICP?
   // 1) imu - [theta] from imu yaw angle - /odom topic
   // 2) odom - [x, y, theta] from wheel odometry - /imu topic
-  // 3) alpha_beta - [x, y, theta] from simple tracking filter - no topic req.
-  // If more than one is enabled, priority is imu > odom > alpha_beta
+  // 3) vel - [x, y, theta] from velocity predictor - see alpha-beta predictors - /vel topic
+  // If more than one is enabled, priority is imu > odom > vel
 
   if (!nh_private_.getParam ("use_imu", use_imu_))
     use_imu_ = true;
@@ -503,22 +505,44 @@ bool LaserScanMatcher::newKeyframeNeeded(const tf::Transform& d)
 void LaserScanMatcher::PointCloudToLDP(const PointCloudT::ConstPtr& cloud,
                                              LDP& ldp)
 {
-  unsigned int n = cloud->width * cloud->height ;
+  double max_d2 = cloud_res_ * cloud_res_;
+  
+  PointCloudT cloud_f;
+  
+  cloud_f.points.push_back(cloud->points[0]);
+  
+  for (unsigned int i = 1; i < cloud->points.size(); ++i)
+  {
+    const PointT& pa = cloud_f.points[cloud_f.points.size() - 1];
+    const PointT& pb = cloud->points[i];
+    
+    double dx = pa.x - pb.x;
+    double dy = pa.y - pb.y;
+    double d2 = dx*dx + dy*dy;
+    
+    if (d2 > max_d2)
+    {
+      cloud_f.points.push_back(pb);
+    }
+  }
+  
+  printf("%d, %d\n", cloud->points.size(), cloud_f.points.size());
+  
+  unsigned int n = cloud_f.points.size();
   ldp = ld_alloc_new(n);
 
   for (unsigned int i = 0; i < n; i++)
   {
     // calculate position in laser frame
-
-    if (is_nan(cloud->points[i].x) || is_nan(cloud->points[i].y))
+    if (is_nan(cloud_f.points[i].x) || is_nan(cloud_f.points[i].y))
     {
       ROS_WARN("Laser Scan Matcher: Cloud input contains NaN values. \
                 Please use a filtered cloud input.");
     }
     else
     {
-      double r = sqrt(cloud->points[i].x * cloud->points[i].x + 
-                      cloud->points[i].y * cloud->points[i].y);
+      double r = sqrt(cloud_f.points[i].x * cloud_f.points[i].x + 
+                      cloud_f.points[i].y * cloud_f.points[i].y);
       
       if (r > cloud_range_min_ && r < cloud_range_max_)
       {
@@ -532,7 +556,7 @@ void LaserScanMatcher::PointCloudToLDP(const PointCloudT::ConstPtr& cloud,
       }
     }
 
-    ldp->theta[i] = atan2(cloud->points[i].y, cloud->points[i].x);
+    ldp->theta[i] = atan2(cloud_f.points[i].y, cloud_f.points[i].x);
     ldp->cluster[i]  = -1;
   }
 
