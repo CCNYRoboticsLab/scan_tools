@@ -526,9 +526,8 @@ void LaserScanMatcher::PointCloudToLDP(const PointCloudT::ConstPtr& cloud,
     }
   }
   
-  printf("%d, %d\n", cloud->points.size(), cloud_f.points.size());
-  
   unsigned int n = cloud_f.points.size();
+
   ldp = ld_alloc_new(n);
 
   for (unsigned int i = 0; i < n; i++)
