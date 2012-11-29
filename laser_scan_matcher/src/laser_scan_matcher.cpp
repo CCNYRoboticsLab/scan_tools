@@ -482,6 +482,10 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
     prev_ldp_scan_ = curr_ldp_scan;
     f2b_kf_ = f2b_;
   }
+  else
+  {
+    ld_free(curr_ldp_scan);
+  }
 
   last_icp_time_ = time;
 
