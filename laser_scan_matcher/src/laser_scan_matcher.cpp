@@ -497,7 +497,7 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
 
 bool LaserScanMatcher::newKeyframeNeeded(const tf::Transform& d)
 {
-  if (tf::getYaw(d.getRotation()) > kf_dist_angular_) return true;
+  if (fabs(tf::getYaw(d.getRotation())) > kf_dist_angular_) return true;
 
   double x = d.getOrigin().getX();
   double y = d.getOrigin().getY();
