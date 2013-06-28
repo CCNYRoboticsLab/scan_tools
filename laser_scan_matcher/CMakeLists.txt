@@ -16,36 +16,6 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 #rosbuild_genmsg()
 
-################################################################################
-# CSM
-################################################################################
-
-INCLUDE($ENV{ROS_ROOT}/core/rosbuild/FindPkgConfig.cmake)
-
-rosbuild_find_ros_package(csm)
-
-SET(ENV{PKG_CONFIG_PATH} "${csm_PACKAGE_PATH}/lib/pkgconfig")
-MESSAGE($ENV{PKG_CONFIG_PATH})
-
-# Require we have pkgconfig installed
-find_package(PkgConfig REQUIRED)
-
-# Tell pkgconfig to look for CSM
-pkg_check_modules(CSM REQUIRED csm)
-
-IF(${CSM_FOUND})
-  MESSAGE("CSM_LIBRARY_DIRS: ${CSM_LIBRARY_DIRS}")
-  MESSAGE("CSM_LIBRARIES:    ${CSM_LIBRARIES}")
-  MESSAGE("CSM_INCLUDE_DIRS: ${CSM_INCLUDE_DIRS}")
-
-  include_directories(${CSM_INCLUDE_DIRS})
-  link_directories(${CSM_LIBRARY_DIRS})   
-ELSE(${CSM_FOUND})
-  MESSAGE(FATAL_ERROR "CSM not found")
-ENDIF(${CSM_FOUND})
-
-################################################################################
-
 # create laser_scan_matcher library
 rosbuild_add_library (laser_scan_matcher src/laser_scan_matcher.cpp)         
 target_link_libraries(laser_scan_matcher ${CSM_LIBRARIES})
