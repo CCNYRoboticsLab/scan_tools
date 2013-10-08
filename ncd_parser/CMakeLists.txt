@@ -16,7 +16,7 @@ include_directories(include ${catkin_INCLUDE_DIRS})
 # Declare info that other packages need to import library generated here
 catkin_package()
 
-#Note we don't link against pcl as we're using header-only parts of the library
+#Create node
 add_executable( ${PROJECT_NAME} src/ncd_parser.cpp)
 target_link_libraries( ${PROJECT_NAME} ${catkin_LIBRARIES})
 add_dependencies(${PROJECT_NAME} ${catkin_EXPORTED_TARGETS})

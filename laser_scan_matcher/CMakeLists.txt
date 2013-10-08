@@ -7,15 +7,16 @@ download_and_compile_csm()
 
 # List C++ dependencies on ros packages
 set( ROS_CXX_DEPENDENCIES
+  roscpp
+  nodelet
   sensor_msgs
   tf
   pcl_ros
   pcl_conversions
   geometry_msgs
-  nav_msgs
-  sensor_msgs)
+  nav_msgs)
 
-# Find catkin and all ROS required packages
+# Find catkin and all required ROS components
 find_package(catkin REQUIRED COMPONENTS ${ROS_CXX_DEPENDENCIES})
 find_package(PCL REQUIRED QUIET)
 
@@ -58,7 +59,7 @@ install(DIRECTORY include/laser_scan_matcher/
 install(TARGETS laser_scan_matcher_node
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION} )
 
-#Install node description
+#Install nodelet description
 install(FILES laser_scan_matcher_nodelet.xml
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION} )
 
