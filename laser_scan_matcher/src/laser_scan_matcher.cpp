@@ -36,6 +36,7 @@
  */
 
 #include "laser_scan_matcher/laser_scan_matcher.h"
+#include <pcl_conversions/pcl_conversions.h>
 
 namespace scan_tools
 {
@@ -325,23 +326,25 @@ void LaserScanMatcher::cloudCallback (const PointCloudT::ConstPtr& cloud)
 {
   // **** if first scan, cache the tf from base to the scanner
 
+  std_msgs::Header cloud_header = pcl_conversions::fromPCL(cloud->header);
+
   if (!initialized_)
   {
     // cache the static tf from base to laser
-    if (!getBaseToLaserTf(cloud->header.frame_id))
+    if (!getBaseToLaserTf(cloud_header.frame_id))
     {
       ROS_WARN("Skipping scan");
       return;
     }
 
     PointCloudToLDP(cloud, prev_ldp_scan_);
-    last_icp_time_ = cloud->header.stamp;
+    last_icp_time_ = cloud_header.stamp;
     initialized_ = true;
   }
 
   LDP curr_ldp_scan;
   PointCloudToLDP(cloud, curr_ldp_scan);
-  processScan(curr_ldp_scan, cloud->header.stamp);
+  processScan(curr_ldp_scan, cloud_header.stamp);
 }
 
 void LaserScanMatcher::scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
