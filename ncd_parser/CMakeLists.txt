@@ -1,28 +1,30 @@
-cmake_minimum_required(VERSION 2.4.6)
-include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
+cmake_minimum_required(VERSION 2.8.3)
+project(ncd_parser)
 
-# Set the build type.  Options are:
-#  Coverage       : w/ debug symbols, w/o optimization, w/ code-coverage
-#  Debug          : w/ debug symbols, w/o optimization
-#  Release        : w/o debug symbols, w/ optimization
-#  RelWithDebInfo : w/ debug symbols, w/ optimization
-#  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries
-#set(ROS_BUILD_TYPE RelWithDebInfo)
+# List C++ dependencies on ros packages
+set( ROS_CXX_DEPENDENCIES
+    roscpp
+    sensor_msgs
+    tf )
 
-rosbuild_init()
+# Find catkin and all required ROS components
+find_package(catkin REQUIRED COMPONENTS ${ROS_CXX_DEPENDENCIES})
 
-#set the default path for built executables to the "bin" directory
-set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
-#set the default path for built libraries to the "lib" directory
-set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
+# Set include directories
+include_directories(include ${catkin_INCLUDE_DIRS})
 
-#uncomment if you have defined messages
-#rosbuild_genmsg()
-#uncomment if you have defined services
-#rosbuild_gensrv()
+# Declare info that other packages need to import library generated here
+catkin_package()
 
-set(NCD_PARSER ncd_parser)
+#Note we don't link against pcl as we're using header-only parts of the library
+add_executable( ${PROJECT_NAME} src/ncd_parser.cpp)
+target_link_libraries( ${PROJECT_NAME} ${catkin_LIBRARIES})
+add_dependencies(${PROJECT_NAME} ${catkin_EXPORTED_TARGETS})
 
-set(NCD_PARSER_SRC src/ncd_parser.cpp)
+#Install node
+install(TARGETS ${PROJECT_NAME}
+    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION} )
 
-rosbuild_add_executable(${NCD_PARSER} ${NCD_PARSER_SRC})
+#Install demo directory
+install(DIRECTORY demo
+    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION} )
