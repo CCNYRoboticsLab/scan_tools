@@ -29,6 +29,8 @@
 
 #include "scan_to_cloud_converter/scan_to_cloud_converter.h"
 
+#include <pcl_conversions/pcl_conversions.h>
+
 namespace scan_tools {
 
 ScanToCloudConverter::ScanToCloudConverter(ros::NodeHandle nh, ros::NodeHandle nh_private):
@@ -78,7 +80,7 @@ void ScanToCloudConverter::scanCallback(const sensor_msgs::LaserScan::ConstPtr& 
   cloud_msg->width = scan_msg->ranges.size();
   cloud_msg->height = 1;
   cloud_msg->is_dense = false; //contains nans
-  cloud_msg->header = scan_msg->header;
+  pcl_conversions::toPCL(scan_msg->header, cloud_msg->header);
 
   cloud_publisher_.publish(cloud_msg);
 }
