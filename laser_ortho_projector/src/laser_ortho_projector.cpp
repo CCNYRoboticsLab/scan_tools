@@ -29,6 +29,8 @@
 
 #include "laser_ortho_projector/laser_ortho_projector.h"
 
+#include <pcl_conversions/pcl_conversions.h>
+
 namespace scan_tools {
 
 LaserOrthoProjector::LaserOrthoProjector (ros::NodeHandle nh, ros::NodeHandle nh_private):
@@ -191,7 +193,7 @@ void LaserOrthoProjector::scanCallback(const sensor_msgs::LaserScan::ConstPtr& s
   PointCloudT::Ptr cloud = 
     boost::shared_ptr<PointCloudT>(new PointCloudT());
 
-  cloud->header = scan_msg->header;
+  pcl_conversions::toPCL(scan_msg->header, cloud->header);
   cloud->header.frame_id = ortho_frame_;
 
   for (unsigned int i = 0; i < scan_msg->ranges.size(); i++)

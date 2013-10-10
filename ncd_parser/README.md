@@ -1,19 +1,20 @@
 DESCRIPTION:
+-----------------------------------
 
 The ncd_parser package reads in .alog data files from the New College Dataset and 
 broadcasts scan and odometry messages to ROS.
 
 INSTRUCTIONS:
+-----------------------------------
 
-To compile, run:
-
-$ rosmake ncd_parser
+To compile, see scan_tools's `README.md`
 
 To test, run:
 
-$ roslaunch ncd_parser demo.launch
+    roslaunch ncd_parser demo.launch
 
 ACKNOWLEDGEMENTS:
+-----------------------------------
 
 QuadTree_Alog.alog used with the permission of Dr. Paul Newman, Oxford University.
 

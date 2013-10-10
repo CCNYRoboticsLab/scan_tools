@@ -4,15 +4,12 @@ Laser scan tools for ROS
 Overview
 -----------------------------------
 
-Laser scan processing tools. The stack contains:
-
- * `csm`: a meta-package that downloads and installs Andrea Censi's 
-Canonical Scan Matcher [1] locally
+Laser scan processing tools. The meta-package contains:
 
  * `laser_ortho_projector`: calculates orthogonal projections of LaserScan messages
  
  * `laser_scan_matcher`: an incremental laser scan matcher, using Andrea Censi's Canonical 
-Scan Matcher implementation
+Scan Matcher implementation. It downloads and installs Andrea Censi's Canonical Scan Matcher [1] locally.
 
  * `laser_scan_sparsifier`: takes in a LaserScan message and sparsifies it
 
@@ -29,8 +26,7 @@ Installing
 
 ### From source ###
 
-Create a directory where you want the package downloaded (ex. `~/ros`), 
-and add it to `$ROS_PACKAGE_PATH`.
+Create a [catkin workspace](http://wiki.ros.org/catkin/Tutorials/create_a_workspace) and navigate to its source directory (ex. `~/catkin_ws/src`).
 
 Make sure you have git installed:
 
@@ -40,18 +36,22 @@ Download the stack from our repository:
 
     git clone https://github.com/ccny-ros-pkg/scan_tools.git
 
-Install any dependencies using [[rosdep]].
+Install any dependencies using [rosdep](http://wiki.ros.org/rosdep).
 
     rosdep install scan_tools
 
-Compile the stack:
+Compile your catkin workspace from its root folder (eg. `~/catkin_ws`):
 
-    rosmake scan_tools
+    catkin_make
+
+Finally, source the information from your catkin workspace (or add it to your `~/.bashrc`)
+
+    source devel/setup.bash
 
 More info
 -----------------------------------
 
-http://ros.org/wiki/scan_tools
+http://wiki.ros.org/scan_tools
 
 References
 -----------------------------------

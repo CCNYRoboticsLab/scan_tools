@@ -1,0 +1,30 @@
+<package>
+  <name>scan_tools</name>
+  <version>0.1.2</version>
+
+  <description>
+    Laser scan processing tools.
+  </description>
+
+  <maintainer email="ccnyroboticslab@gmail.com">Ivan Dryanovski</maintainer>
+
+  <license>BSD</license>
+  <license>LGPLv3</license>
+
+  <url>http://ros.org/wiki/scan_tools</url>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <run_depend>laser_ortho_projector</run_depend>
+  <run_depend>laser_scan_matcher</run_depend>
+  <run_depend>laser_scan_sparsifier</run_depend>
+  <run_depend>laser_scan_splitter</run_depend>
+  <run_depend>ncd_parser</run_depend>
+  <run_depend>scan_to_cloud_converter</run_depend>
+
+
+  <export>
+    <metapackage/>
+  </export>
+
+</package>

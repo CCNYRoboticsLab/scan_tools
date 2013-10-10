@@ -1,22 +1,34 @@
-cmake_minimum_required(VERSION 2.4.6)
-include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
+cmake_minimum_required(VERSION 2.8.3)
+project(scan_to_cloud_converter)
 
-# Set the build type.  Options are:
-#  Coverage       : w/ debug symbols, w/o optimization, w/ code-coverage
-#  Debug          : w/ debug symbols, w/o optimization
-#  Release        : w/o debug symbols, w/ optimization
-#  RelWithDebInfo : w/ debug symbols, w/ optimization
-#  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries
-set(ROS_BUILD_TYPE RelWithDebInfo)
 
-rosbuild_init()
+# List C++ dependencies on ros packages
+set( ROS_CXX_DEPENDENCIES
+  roscpp
+  pcl_ros
+  pcl_conversions)
 
-#set the default path for built executables to the "bin" directory
-set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
-#set the default path for built libraries to the "lib" directory
-set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
+# Find catkin and all required ROS components
+find_package(catkin REQUIRED COMPONENTS ${ROS_CXX_DEPENDENCIES})
+find_package(PCL REQUIRED QUIET)
 
-rosbuild_add_executable(scan_to_cloud_converter_node
-  src/scan_to_cloud_converter_node.cpp
-  src/scan_to_cloud_converter.cpp)
+# Set include directories
+include_directories(include ${catkin_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
 
+# Declare info that other packages need to import library generated here
+catkin_package( )
+
+#Create node
+add_executable( scan_to_cloud_converter_node
+    src/scan_to_cloud_converter_node.cpp
+    src/scan_to_cloud_converter.cpp )
+
+# No need to link against pcl (using header only libraries)
+target_link_libraries( scan_to_cloud_converter_node ${catkin_LIBRARIES})
+
+add_dependencies(scan_to_cloud_converter_node ${catkin_EXPORTED_TARGETS})
+
+
+#Install node
+install(TARGETS scan_to_cloud_converter_node
+    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION} )
