@@ -9,7 +9,7 @@ Example launch file: launches the scan matcher with pre-recorded data
   <param name="/use_sim_time" value="true"/>
 
   <node pkg="rviz" type="rviz" name="rviz" 
-    args="-d $(find laser_scan_matcher)/demo/demo.vcg"/>
+    args="-d $(find laser_scan_matcher)/demo/demo.rviz"/>
 
   <node pkg="rosbag" type="play" name="play" 
     args="$(find laser_scan_matcher)/demo/demo.bag --delay=5 --clock"/>
