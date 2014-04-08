@@ -20,7 +20,7 @@ slam_gmapping
   #### start rviz ################################################
 
   <node pkg="rviz" type="rviz" name="rviz" 
-    args="-d $(find laser_scan_matcher)/demo/demo_gmapping.vcg"/>
+    args="-d $(find laser_scan_matcher)/demo/demo_gmapping.rviz"/>
 
   #### start the laser scan_matcher ##############################
 
