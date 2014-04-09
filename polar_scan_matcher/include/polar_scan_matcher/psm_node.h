@@ -4,6 +4,8 @@
 *  Ivan Dryanovski <ivan.dryanovski@gmail.com>
 *  William Morris <morris@ee.ccny.cuny.edu>
 *  http://robotics.ccny.cuny.edu
+*  Modified 2014, Daniel Axtens <daniel@axtens.net>
+*  whilst a student at the Australian National University
 *
 *  This program is free software: you can redistribute it and/or modify
 *  it under the terms of the GNU General Public License as published by
@@ -56,9 +58,9 @@ class PSMNode
 
     tf::TransformBroadcaster tfBroadcaster_;
     tf::TransformListener    tfListener_;
-    btTransform prevWorldToBase_;
-    btTransform baseToLaser_;
-    btTransform laserToBase_;
+    tf::Transform prevWorldToBase_;
+    tf::Transform baseToLaser_;
+    tf::Transform laserToBase_;
 
     bool initialized_;
     double totalDuration_;
@@ -94,16 +96,16 @@ class PSMNode
     void imuCallback (const sensor_msgs::Imu& imuMsg);
     void scanCallback (const sensor_msgs::LaserScan& scan);
 
-    void publishTf(const btTransform& transform, 
+    void publishTf(const tf::Transform& transform, 
                    const ros::Time& time);
-    void publishPose(const btTransform& transform);
+    void publishPose(const tf::Transform& transform);
 
     void rosToPMScan(const sensor_msgs::LaserScan& scan, 
-                     const btTransform& change,
+                     const tf::Transform& change,
                            PMScan* pmScan);
-    void pose2DToTf(const geometry_msgs::Pose2D& pose, btTransform& t);
-    void tfToPose2D(const btTransform& t, geometry_msgs::Pose2D& pose);
-    void getCurrentEstimatedPose(btTransform& worldToBase, 
+    void pose2DToTf(const geometry_msgs::Pose2D& pose, tf::Transform& t);
+    void tfToPose2D(const tf::Transform& t, geometry_msgs::Pose2D& pose);
+    void getCurrentEstimatedPose(tf::Transform& worldToBase, 
                                  const sensor_msgs::LaserScan& scanMsg);
 
   public:

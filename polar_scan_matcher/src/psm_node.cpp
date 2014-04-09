@@ -4,6 +4,8 @@
 *  Ivan Dryanovski <ivan.dryanovski@gmail.com>
 *  William Morris <morris@ee.ccny.cuny.edu>
 *  http://robotics.ccny.cuny.edu
+*  Modified 2014, Daniel Axtens <daniel@axtens.net>
+*  whilst a student at the Australian National University
 *
 *  This program is free software: you can redistribute it and/or modify
 *  it under the terms of the GNU General Public License as published by
@@ -161,7 +163,7 @@ bool PSMNode::initialize(const sensor_msgs::LaserScan& scan)
 
   // **** create the first pm scan from the laser scan message
 
-  btTransform t;
+  tf::Transform t;
   t.setIdentity();
   prevPMScan_ = new PMScan(scan.ranges.size());
   rosToPMScan(scan, t, prevPMScan_);
@@ -172,8 +174,8 @@ bool PSMNode::initialize(const sensor_msgs::LaserScan& scan)
 void PSMNode::imuCallback (const sensor_msgs::Imu& imuMsg)
 {
   imuMutex_.lock();
-  btQuaternion q(imuMsg.orientation.x, imuMsg.orientation.y, imuMsg.orientation.z, imuMsg.orientation.w);
-  btMatrix3x3 m(q);
+  tf::Quaternion q(imuMsg.orientation.x, imuMsg.orientation.y, imuMsg.orientation.z, imuMsg.orientation.w);
+  tf::Matrix3x3 m(q);
   double temp;
   m.getRPY(temp, temp, currImuAngle_);
   imuMutex_.unlock();
@@ -201,15 +203,15 @@ void PSMNode::scanCallback(const sensor_msgs::LaserScan& scan)
   // PM scan matcher is used in the following way:
   // The reference scan (prevPMScan_) always has a pose of 0
   // The new scan (currPMScan) has a pose equal to the movement
-  // of the laser in the world frame since the last scan (btTransform change)
+  // of the laser in the world frame since the last scan (tf::Transform change)
   // The computed correction is then propagated using the tf machinery
 
   prevPMScan_->rx = 0;
   prevPMScan_->ry = 0;
   prevPMScan_->th = 0; 
 
-  btTransform currWorldToBase;
-  btTransform change;
+  tf::Transform currWorldToBase;
+  tf::Transform change;
   change.setIdentity();
 
   // what odometry model to use
@@ -255,8 +257,8 @@ void PSMNode::scanCallback(const sensor_msgs::LaserScan& scan)
 
   // change = scan match result for how much laser moved between scans, 
   // in the world frame
-  change.setOrigin(btVector3(dx, dy, 0.0));
-  btQuaternion q;
+  change.setOrigin(tf::Vector3(dx, dy, 0.0));
+  tf::Quaternion q;
   q.setRPY(0, 0, da);
   change.setRotation(q);
   
@@ -284,14 +286,14 @@ void PSMNode::scanCallback(const sensor_msgs::LaserScan& scan)
   ROS_INFO("dur:\t %.3f ms \t ave:\t %.3f ms", dur, ave);
 }
 
-void PSMNode::publishTf(const btTransform& transform, 
+void PSMNode::publishTf(const tf::Transform& transform, 
                                   const ros::Time& time)
 {
   tf::StampedTransform transformMsg (transform, time, worldFrame_, baseFrame_);
   tfBroadcaster_.sendTransform (transformMsg);
 }
 
-void PSMNode::publishPose(const btTransform& transform)
+void PSMNode::publishPose(const tf::Transform& transform)
 {
   geometry_msgs::Pose2D pose;
   tfToPose2D(transform, pose);
@@ -300,7 +302,7 @@ void PSMNode::publishPose(const btTransform& transform)
 }
 
 void PSMNode::rosToPMScan(const sensor_msgs::LaserScan& scan, 
-                          const btTransform& change,
+                          const tf::Transform& change,
                                 PMScan* pmScan)
 {
   geometry_msgs::Pose2D pose;
@@ -334,7 +336,7 @@ void PSMNode::rosToPMScan(const sensor_msgs::LaserScan& scan,
   matcher_.pm_segment_scan   (pmScan);  
 }
 
-void PSMNode::getCurrentEstimatedPose(btTransform& worldToBase, 
+void PSMNode::getCurrentEstimatedPose(tf::Transform& worldToBase, 
                                       const sensor_msgs::LaserScan& scanMsg)
 {
   tf::StampedTransform worldToBaseTf;
@@ -352,17 +354,17 @@ void PSMNode::getCurrentEstimatedPose(btTransform& worldToBase,
   worldToBase = worldToBaseTf;
 }
 
-void PSMNode::pose2DToTf(const geometry_msgs::Pose2D& pose, btTransform& t)
+void PSMNode::pose2DToTf(const geometry_msgs::Pose2D& pose, tf::Transform& t)
 {
-  t.setOrigin(btVector3(pose.x, pose.y, 0.0));
-  btQuaternion q;
+  t.setOrigin(tf::Vector3(pose.x, pose.y, 0.0));
+  tf::Quaternion q;
   q.setRPY(0, 0, pose.theta);
   t.setRotation(q);
 }
 
-void PSMNode::tfToPose2D(const btTransform& t, geometry_msgs::Pose2D& pose)
+void PSMNode::tfToPose2D(const tf::Transform& t, geometry_msgs::Pose2D& pose)
 {
-  btMatrix3x3 m(t.getRotation());
+  tf::Matrix3x3 m(t.getRotation());
   double roll, pitch, yaw;
   m.getRPY(roll, pitch, yaw);
 
