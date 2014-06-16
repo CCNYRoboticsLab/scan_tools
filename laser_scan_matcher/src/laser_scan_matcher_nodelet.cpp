@@ -35,7 +35,7 @@
  *  on Robotics and Automation (ICRA), 2008
  */
 
-#include "laser_scan_matcher/laser_scan_matcher_nodelet.h"
+#include <laser_scan_matcher/laser_scan_matcher_nodelet.h>
 
 typedef scan_tools::LaserScanMatcherNodelet LaserScanMatcherNodelet;
 

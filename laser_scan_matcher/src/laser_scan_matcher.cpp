@@ -35,7 +35,7 @@
  *  on Robotics and Automation (ICRA), 2008
  */
 
-#include "laser_scan_matcher/laser_scan_matcher.h"
+#include <laser_scan_matcher/laser_scan_matcher.h>
 #include <pcl_conversions/pcl_conversions.h>
 
 namespace scan_tools

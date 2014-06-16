@@ -41,7 +41,7 @@
 #include <nodelet/nodelet.h>
 #include <pluginlib/class_list_macros.h>
 
-#include "laser_scan_matcher/laser_scan_matcher.h"
+#include <laser_scan_matcher/laser_scan_matcher.h>
 
 namespace scan_tools {
 

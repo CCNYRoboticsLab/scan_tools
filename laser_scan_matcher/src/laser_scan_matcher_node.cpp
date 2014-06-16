@@ -35,7 +35,7 @@
  *  on Robotics and Automation (ICRA), 2008
  */
 
-#include "laser_scan_matcher/laser_scan_matcher.h"
+#include <laser_scan_matcher/laser_scan_matcher.h>
 
 int main(int argc, char** argv)
 {
