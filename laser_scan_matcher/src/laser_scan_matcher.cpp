@@ -150,8 +150,8 @@ void LaserScanMatcher::initParams()
   kf_dist_linear_sq_ = kf_dist_linear_ * kf_dist_linear_;
 
   // **** What predictions are available to speed up the ICP?
-  // 1) imu - [theta] from imu yaw angle - /odom topic
-  // 2) odom - [x, y, theta] from wheel odometry - /imu topic
+  // 1) imu - [theta] from imu yaw angle - /imu topic
+  // 2) odom - [x, y, theta] from wheel odometry - /odom topic
   // 3) vel - [x, y, theta] from velocity predictor - see alpha-beta predictors - /vel topic
   // If more than one is enabled, priority is imu > odom > vel
 
@@ -244,28 +244,28 @@ void LaserScanMatcher::initParams()
     input_.do_alpha_test_thresholdDeg = 20.0;
 
   // Percentage of correspondences to consider: if 0.9,
-	// always discard the top 10% of correspondences with more error
+  // always discard the top 10% of correspondences with more error
   if (!nh_private_.getParam ("outliers_maxPerc", input_.outliers_maxPerc))
     input_.outliers_maxPerc = 0.90;
 
   // Parameters describing a simple adaptive algorithm for discarding.
-	//  1) Order the errors.
-	//	2) Choose the percentile according to outliers_adaptive_order.
-	//	   (if it is 0.7, get the 70% percentile)
-	//	3) Define an adaptive threshold multiplying outliers_adaptive_mult
-	//	   with the value of the error at the chosen percentile.
-	//	4) Discard correspondences over the threshold.
-	//	This is useful to be conservative; yet remove the biggest errors.
+  //  1) Order the errors.
+  //  2) Choose the percentile according to outliers_adaptive_order.
+  //     (if it is 0.7, get the 70% percentile)
+  //  3) Define an adaptive threshold multiplying outliers_adaptive_mult
+  //     with the value of the error at the chosen percentile.
+  //  4) Discard correspondences over the threshold.
+  //  This is useful to be conservative; yet remove the biggest errors.
   if (!nh_private_.getParam ("outliers_adaptive_order", input_.outliers_adaptive_order))
     input_.outliers_adaptive_order = 0.7;
 
   if (!nh_private_.getParam ("outliers_adaptive_mult", input_.outliers_adaptive_mult))
     input_.outliers_adaptive_mult = 2.0;
 
-  //If you already have a guess of the solution, you can compute the polar angle
-	//	of the points of one scan in the new position. If the polar angle is not a monotone
-	//	function of the readings index, it means that the surface is not visible in the
-	//	next position. If it is not visible, then we don't use it for matching.
+  // If you already have a guess of the solution, you can compute the polar angle
+  // of the points of one scan in the new position. If the polar angle is not a monotone
+  // function of the readings index, it means that the surface is not visible in the
+  // next position. If it is not visible, then we don't use it for matching.
   if (!nh_private_.getParam ("do_visibility_test", input_.do_visibility_test))
     input_.do_visibility_test = 0;
 
