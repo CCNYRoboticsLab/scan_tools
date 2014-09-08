@@ -27,11 +27,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*  This package uses Canonical Scan Matcher [1], written by 
+/*  This package uses Canonical Scan Matcher [1], written by
  *  Andrea Censi
  *
- *  [1] A. Censi, "An ICP variant using a point-to-line metric" 
- *  Proceedings of the IEEE International Conference 
+ *  [1] A. Censi, "An ICP variant using a point-to-line metric"
+ *  Proceedings of the IEEE International Conference
  *  on Robotics and Automation (ICRA), 2008
  */
 
@@ -41,7 +41,7 @@
 #include <nodelet/nodelet.h>
 #include <pluginlib/class_list_macros.h>
 
-#include "laser_scan_matcher/laser_scan_matcher.h"
+#include <laser_scan_matcher/laser_scan_matcher.h>
 
 namespace scan_tools {
 

@@ -27,25 +27,25 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*  This package uses Canonical Scan Matcher [1], written by 
+/*  This package uses Canonical Scan Matcher [1], written by
  *  Andrea Censi
  *
- *  [1] A. Censi, "An ICP variant using a point-to-line metric" 
- *  Proceedings of the IEEE International Conference 
+ *  [1] A. Censi, "An ICP variant using a point-to-line metric"
+ *  Proceedings of the IEEE International Conference
  *  on Robotics and Automation (ICRA), 2008
  */
 
-#include "laser_scan_matcher/laser_scan_matcher_nodelet.h"
+#include <laser_scan_matcher/laser_scan_matcher_nodelet.h>
 
 typedef scan_tools::LaserScanMatcherNodelet LaserScanMatcherNodelet;
 
-PLUGINLIB_DECLARE_CLASS(laser_scan_matcher, LaserScanMatcherNodelet, 
+PLUGINLIB_DECLARE_CLASS(laser_scan_matcher, LaserScanMatcherNodelet,
   LaserScanMatcherNodelet, nodelet::Nodelet);
 
 void LaserScanMatcherNodelet::onInit()
 {
   NODELET_INFO("Initializing LaserScanMatcher Nodelet");
-  
+
   // TODO: Do we want the single threaded or multithreaded NH?
   ros::NodeHandle nh         = getMTNodeHandle();
   ros::NodeHandle nh_private = getMTPrivateNodeHandle();
