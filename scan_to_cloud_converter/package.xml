@@ -1,10 +1,11 @@
 <package>
   <name>scan_to_cloud_converter</name>
-  <version>0.1.2</version>
+  <version>0.2.0</version>
   <description>
     Converts LaserScan to PointCloud messages.
   </description>
   <maintainer email="ccnyroboticslab@gmail.com">Ivan Dryanovski</maintainer>
+  <maintainer email="cjaramillo@gc.cuny.edu">Carlos</maintainer>
 
   <url>http://wiki.ros.org/laser_scan_matcher</url>
   <author>Ivan Dryanovski</author>
