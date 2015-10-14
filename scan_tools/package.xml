@@ -1,6 +1,6 @@
 <package>
   <name>scan_tools</name>
-  <version>0.2.0</version>
+  <version>0.2.1</version>
 
   <description>
     Laser scan processing tools.

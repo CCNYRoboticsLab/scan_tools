@@ -2,8 +2,8 @@
 Changelog for package polar_scan_matcher
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.2.1 (2015-10-14)
+------------------
 * [feat] added polar scan matcher
 * [feat] added imu option to PSM, made CSM and PSM look similar
 * [feat] added demo dir to CSM, 

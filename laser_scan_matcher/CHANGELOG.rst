@@ -2,8 +2,8 @@
 Changelog for package laser_scan_matcher
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.2.1 (2015-10-14)
+------------------
 * [feat] Update gmapping demo as well.
 * [feat] removed vgf filter, added xy filtering. added vgf on point cloud input for scan_matcher, vgf on point cloud input for scan_matcher
 * [feat] removing pose2dstamped message type, now using posestamped

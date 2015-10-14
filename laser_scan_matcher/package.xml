@@ -1,6 +1,6 @@
 <package>
   <name>laser_scan_matcher</name>
-  <version>0.2.0</version>
+  <version>0.2.1</version>
   <description>
     <p>
      An incremental laser scan matcher, using Andrea Censi's Canonical Scan Matcher implementation. Package downloads and installs Canonical Scan Matcher locally.  Patches are applied to accept scans in cartesian (x,y) coordinates. More about <a href="http://www.cds.caltech.edu/~andrea/research/sw/csm.html">CSM</a>. NOTE the Canonical Scan Matcher library is licensed under the GNU Lesser General Public License v3, whereas the rest of the code is released under the BSD license.

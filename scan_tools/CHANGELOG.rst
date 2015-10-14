@@ -2,8 +2,8 @@
 Changelog for package scan_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.2.1 (2015-10-14)
+------------------
 * [feat] Released into ROS Indigo and Jade
 * [feat] Update gmapping demo as well.
 * [feat] added support for IMU message for orientation in laser_ortho_projector. The imu topic is imu/data* [feat] removed vgf filter, added xy filtering. added vgf on point cloud input for scan_matcher, vgf on point cloud input for scan_matcher
