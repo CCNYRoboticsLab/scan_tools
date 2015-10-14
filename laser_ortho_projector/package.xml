@@ -1,10 +1,11 @@
 <package>
   <name>laser_ortho_projector</name>
-  <version>0.1.2</version>
+  <version>0.2.0</version>
   <description>
     The laser_ortho_projector package calculates orthogonal projections of LaserScan messages.
   </description>
   <maintainer email="ccnyroboticslab@gmail.com">Ivan Dryanovski</maintainer>
+  <maintainer email="cjaramillo@gc.cuny.edu">Carlos</maintainer>
 
   <url>http://wiki.ros.org/laser_scan_matcher</url>
   <author>Ivan Dryanovski</author>

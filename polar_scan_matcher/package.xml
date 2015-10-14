@@ -8,6 +8,7 @@
   </description>
   <author>Ivan Dryanovski</author>
   <maintainer email="ccnyroboticslab@gmail.com">Ivan Dryanovski</maintainer>
+  <maintainer email="cjaramillo@gc.cuny.edu">Carlos</maintainer>
   <license>GPL</license>
 
   <url>http://ros.org/wiki/polar_scan_matcher</url>

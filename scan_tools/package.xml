@@ -1,12 +1,14 @@
 <package>
   <name>scan_tools</name>
-  <version>0.1.2</version>
+  <version>0.2.0</version>
 
   <description>
     Laser scan processing tools.
   </description>
 
   <maintainer email="ccnyroboticslab@gmail.com">Ivan Dryanovski</maintainer>
+  <maintainer email="cjaramillo@gc.cuny.edu">Carlos</maintainer>
+  <maintainer email="iiysaito@opensource-robotics.tokyo.jp">Isaac I.Y. Saito</maintainer>
 
   <license>BSD</license>
   <license>LGPLv3</license>
