@@ -16,7 +16,7 @@ set( ROS_CXX_DEPENDENCIES
 find_package(catkin REQUIRED COMPONENTS ${ROS_CXX_DEPENDENCIES})
 find_package(PCL REQUIRED QUIET)
 
-#Include csm project code and compile it
+# Find csm project
 find_package(PkgConfig)
 pkg_check_modules(csm REQUIRED csm)
 
