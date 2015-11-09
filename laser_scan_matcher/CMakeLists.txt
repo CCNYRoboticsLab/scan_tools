@@ -13,7 +13,7 @@ set( ROS_CXX_DEPENDENCIES
   nav_msgs)
 
 # Find catkin and all required ROS components
-find_package(catkin REQUIRED COMPONENTS ${ROS_CXX_DEPENDENCIES})
+find_package(catkin REQUIRED COMPONENTS ${ROS_CXX_DEPENDENCIES} rostest)
 find_package(PCL REQUIRED QUIET)
 
 # Find csm project
@@ -67,3 +67,5 @@ install(FILES laser_scan_matcher_nodelet.xml
 #Install demo files
 install(DIRECTORY demo
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION} )
+
+add_rostest(test/run.test) 
