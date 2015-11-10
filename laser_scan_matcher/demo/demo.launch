@@ -3,10 +3,12 @@ Example launch file: launches the scan matcher with pre-recorded data
 -->
 
 <launch>
+  <arg name="IS_TWISTSTAMPED" default="true" />
   <arg name="use_rviz" default="true" />
   #### set up data playback from bag #############################
 
   <param name="/use_sim_time" value="true"/>
+  <param name="/stamped_vel" value="$(arg IS_TWISTSTAMPED)"/>
 
   <group if="$(arg use_rviz)">
     <node pkg="rviz" type="rviz" name="rviz" 

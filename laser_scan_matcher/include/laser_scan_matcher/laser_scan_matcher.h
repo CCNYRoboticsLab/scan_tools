@@ -118,6 +118,7 @@ class LaserScanMatcher
     bool use_imu_;
     bool use_odom_;
     bool use_vel_;
+    bool stamped_vel_;
 
     // **** state variables
 
@@ -138,7 +139,7 @@ class LaserScanMatcher
     nav_msgs::Odometry latest_odom_msg_;
     nav_msgs::Odometry last_used_odom_msg_;
 
-    geometry_msgs::TwistStamped latest_vel_msg_;
+    geometry_msgs::Twist latest_vel_msg_;
 
     std::vector<double> a_cos_;
     std::vector<double> a_sin_;
@@ -162,7 +163,8 @@ class LaserScanMatcher
 
     void odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg);
     void imuCallback (const sensor_msgs::Imu::ConstPtr& imu_msg);
-    void velCallback (const geometry_msgs::TwistStamped::ConstPtr& twist_msg);
+    void velCallback (const geometry_msgs::Twist::ConstPtr& twist_msg);
+    void velStmpCallback(const geometry_msgs::TwistStamped::ConstPtr& twist_msg);
 
     void createCache (const sensor_msgs::LaserScan::ConstPtr& scan_msg);
     bool getBaseToLaserTf (const std::string& frame_id);
