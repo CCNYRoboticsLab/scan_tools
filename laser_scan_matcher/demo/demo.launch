@@ -3,13 +3,15 @@ Example launch file: launches the scan matcher with pre-recorded data
 -->
 
 <launch>
-
+  <arg name="use_rviz" default="true" />
   #### set up data playback from bag #############################
 
   <param name="/use_sim_time" value="true"/>
 
-  <node pkg="rviz" type="rviz" name="rviz" 
-    args="-d $(find laser_scan_matcher)/demo/demo.rviz"/>
+  <group if="$(arg use_rviz)">
+    <node pkg="rviz" type="rviz" name="rviz" 
+          args="-d $(find laser_scan_matcher)/demo/demo.rviz"/>
+  </group>
 
   <node pkg="rosbag" type="play" name="play" 
     args="$(find laser_scan_matcher)/demo/demo.bag --delay=5 --clock"/>
