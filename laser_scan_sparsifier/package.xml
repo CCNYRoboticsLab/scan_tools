@@ -1,6 +1,6 @@
 <package>
   <name>laser_scan_sparsifier</name>
-  <version>0.2.1</version>
+  <version>0.3.0</version>
   <description>
     The laser_scan_sparsifier takes in a LaserScan message and sparsifies it.
   </description>
