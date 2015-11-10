@@ -17,7 +17,7 @@ matrix:
     - DO_INSTALL=true  CI_ROS_DISTRO="indigo" REPOSITORY=http://packages.ros.org/ros/ubuntu
     - DO_INSTALL=false CI_ROS_DISTRO="indigo" REPOSITORY=http://packages.ros.org/ros/ubuntu
 install:
-  - sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu trusty main" > /etc/apt/sources.list.d/ros-latest.list'
+  - sudo sh -c "echo \"deb ${REPOSITORY} `lsb_release -cs` main\" > /etc/apt/sources.list.d/ros-latest.list"
   - wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
   - sudo apt-get update -qq
   - sudo apt-get install -qq -y python-rosdep python-catkin-tools
