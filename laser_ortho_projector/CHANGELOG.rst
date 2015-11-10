@@ -2,6 +2,9 @@
 Changelog for package laser_ortho_projector
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.2.1 (2015-10-14)
 ------------------
 * [feat] added support for IMU message for orientation in laser_ortho_projector. The imu topic is imu/data

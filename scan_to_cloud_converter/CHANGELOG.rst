@@ -2,6 +2,9 @@
 Changelog for package scan_to_cloud_converter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.2.1 (2015-10-14)
 ------------------
 * [fix] PCL dependency Hydro onward

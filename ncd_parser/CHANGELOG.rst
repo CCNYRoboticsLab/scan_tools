@@ -2,6 +2,9 @@
 Changelog for package ncd_parser
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.2.1 (2015-10-14)
 ------------------
 * [doc] README files to contain catkin instructions

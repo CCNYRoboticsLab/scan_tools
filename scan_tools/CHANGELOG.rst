@@ -2,6 +2,14 @@
 Changelog for package scan_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* [feat] Allow choosing between geometry_msgs/Twist and geometry_msgs/TwistStamped (fix `#21 <https://github.com/ccny-ros-pkg/scan_tools/issues/21>`_)
+* [sys][laser_scan_matcher] Depends on DEB version of CSM; it is no longer built upon compile time
+* [sys][laser_scan_matcher] Add simplest unit test
+* [feat][laser_scan_matcher, demo.launch] Arg for whether to use RViz or not
+* Contributors: Kei Okada, Jorge Santos Simón, Isaac I.Y. Saito
+
 0.2.1 (2015-10-14)
 ------------------
 * [feat] Released into ROS Indigo and Jade
