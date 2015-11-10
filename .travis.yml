@@ -10,8 +10,12 @@ env:
     - CATKIN_WS=~/catkin_ws
     - CATKIN_WS_SRC=${CATKIN_WS}/src
   matrix:
-    - CI_ROS_DISTRO="indigo"
-    - CI_ROS_DISTRO="jade"
+    - DO_INSTALL=true  CI_ROS_DISTRO="indigo" REPOSITORY=http://packages.ros.org/ros-shadow-fixed/ubuntu
+    - DO_INSTALL=false CI_ROS_DISTRO="indigo" REPOSITORY=http://packages.ros.org/ros-shadow-fixed/ubuntu
+matrix:
+  allow_failures:
+    - DO_INSTALL=true  CI_ROS_DISTRO="indigo" REPOSITORY=http://packages.ros.org/ros/ubuntu
+    - DO_INSTALL=false CI_ROS_DISTRO="indigo" REPOSITORY=http://packages.ros.org/ros/ubuntu
 install:
   - sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu trusty main" > /etc/apt/sources.list.d/ros-latest.list'
   - wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
@@ -28,7 +32,7 @@ script:
   - cd $CATKIN_WS
   - catkin init
   # Enable install space
-  - catkin config --install
+  - if [ "${DO_INSTALL}" == true ] ; then catkin config --install; fi
   # Build [and Install] packages
   - catkin build --limit-status-rate 0.1 --no-notify -DCMAKE_BUILD_TYPE=Release
   # Build tests
