@@ -170,7 +170,7 @@ void LaserScanMatcher::initParams()
   // if false, will subscribe to Twist msgs on /vel
   // if true, will subscribe to TwistStamped msgs on /vel
   if (!nh_private_.getParam ("stamped_vel", stamped_vel_))
-    stamped_vel_= true;
+    stamped_vel_ = false;
 
   // **** How to publish the output?
   // tf (fixed_frame->base_frame),
