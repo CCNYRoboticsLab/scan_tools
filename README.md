@@ -36,6 +36,10 @@ Download the stack from our repository:
 
     git clone https://github.com/ccny-ros-pkg/scan_tools.git
 
+Checkout the right branch for your ROS version. for example:
+
+    git checkout master
+
 Install any dependencies using [rosdep](http://wiki.ros.org/rosdep).
 
     rosdep install scan_tools
