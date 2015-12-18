@@ -2,6 +2,11 @@
 Changelog for package scan_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* [sys] Remove obsolete dependency. Alphabetize.
+* Contributors: Isaac I.Y. Saito
+
 0.3.0 (2015-11-10)
 ------------------
 * [feat] Allow choosing between geometry_msgs/Twist and geometry_msgs/TwistStamped (fix `#21 <https://github.com/ccny-ros-pkg/scan_tools/issues/21>`_)

@@ -2,6 +2,9 @@
 Changelog for package laser_ortho_projector
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.3.0 (2015-11-10)
 ------------------
 

@@ -2,6 +2,9 @@
 Changelog for package laser_scan_sparsifier
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.3.0 (2015-11-10)
 ------------------
 
