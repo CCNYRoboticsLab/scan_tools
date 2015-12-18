@@ -48,6 +48,7 @@ Following is an example with ROS Indigo.
 
 ```
 cd ~/catkin_ws
+wstool init src
 wstool merge -t src https://raw.githubusercontent.com/ccny-ros-pkg/scan_tools/indigo/.rosinstall
 rosdep install --from-paths src --ignore-src --rosdistro indigo -r -y
 catkin_make                (or any build commands available in ROS, e.g. `catkin build`)
