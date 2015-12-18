@@ -2,8 +2,8 @@
 Changelog for package laser_scan_matcher
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.1 (2015-12-18)
+------------------
 * [sys] Remove obsolete dependency. Alphabetize.
 * Contributors: Isaac I.Y. Saito
 
