@@ -37,6 +37,7 @@
 
 #include <laser_scan_matcher/laser_scan_matcher.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <boost/assign.hpp>
 
 namespace scan_tools
 {
@@ -75,6 +76,18 @@ LaserScanMatcher::LaserScanMatcher(ros::NodeHandle nh, ros::NodeHandle nh_privat
   {
     pose_stamped_publisher_ = nh_.advertise<geometry_msgs::PoseStamped>(
       "pose_stamped", 5);
+  }
+
+  if (publish_pose_with_covariance_)
+  {
+    pose_with_covariance_publisher_  = nh_.advertise<geometry_msgs::PoseWithCovariance>(
+      "pose_with_covariance", 5);
+  }
+
+  if (publish_pose_with_covariance_stamped_)
+  {
+    pose_with_covariance_stamped_publisher_ = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>(
+      "pose_with_covariance_stamped", 5);
   }
 
   // *** subscribers
@@ -182,7 +195,22 @@ void LaserScanMatcher::initParams()
     publish_pose_ = true;
   if (!nh_private_.getParam ("publish_pose_stamped", publish_pose_stamped_))
     publish_pose_stamped_ = false;
+  if (!nh_private_.getParam ("publish_pose_with_covariance", publish_pose_with_covariance_))
+    publish_pose_with_covariance_ = true;
+  if (!nh_private_.getParam ("publish_pose_with_covariance_stamped", publish_pose_with_covariance_stamped_))
+    publish_pose_with_covariance_stamped_ = false;
 
+  if (!nh_private_.getParam("position_covariance", position_covariance_))
+  {
+    position_covariance_.resize(3);
+    std::fill(position_covariance_.begin(), position_covariance_.end(), 1e-9);
+  }
+
+  if (!nh_private_.getParam("orientation_covariance", orientation_covariance_))
+  {
+    orientation_covariance_.resize(3);
+    std::fill(orientation_covariance_.begin(), orientation_covariance_.end(), 1e-9);
+  }
   // **** CSM parameters - comments copied from algos.h (by Andrea Censi)
 
   // Maximum angular displacement between scans
@@ -482,6 +510,44 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
 
       pose_stamped_publisher_.publish(pose_stamped_msg);
     }
+    if (publish_pose_with_covariance_)
+    {
+      // unstamped PoseWithCovariance message
+      geometry_msgs::PoseWithCovariance::Ptr pose_with_covariance_msg;
+      pose_with_covariance_msg = boost::make_shared<geometry_msgs::PoseWithCovariance>();
+      tf::poseTFToMsg(f2b_, pose_with_covariance_msg->pose);
+
+      pose_with_covariance_msg->covariance = boost::assign::list_of
+          (static_cast<double>(position_covariance_[0])) (0)  (0)  (0)  (0)  (0)
+          (0)  (static_cast<double>(position_covariance_[1])) (0)  (0)  (0)  (0)
+          (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
+          (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
+          (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
+          (0)  (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[2]));
+
+      pose_with_covariance_publisher_.publish(pose_with_covariance_msg);
+    }
+    if (publish_pose_with_covariance_stamped_)
+    {
+      // stamped Pose message
+      geometry_msgs::PoseWithCovarianceStamped::Ptr pose_with_covariance_stamped_msg;
+      pose_with_covariance_stamped_msg = boost::make_shared<geometry_msgs::PoseWithCovarianceStamped>();
+
+      pose_with_covariance_stamped_msg->header.stamp    = time;
+      pose_with_covariance_stamped_msg->header.frame_id = fixed_frame_;
+
+      tf::poseTFToMsg(f2b_, pose_with_covariance_stamped_msg->pose.pose);
+
+      pose_with_covariance_stamped_msg->pose.covariance = boost::assign::list_of
+          (static_cast<double>(position_covariance_[0])) (0)  (0)  (0)  (0)  (0)
+          (0)  (static_cast<double>(position_covariance_[1])) (0)  (0)  (0)  (0)
+          (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
+          (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
+          (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
+          (0)  (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[2]));
+
+      pose_with_covariance_stamped_publisher_.publish(pose_with_covariance_stamped_msg);
+    }
     if (publish_tf_)
     {
       tf::StampedTransform transform_msg (f2b_, time, fixed_frame_, base_frame_);
@@ -741,4 +807,3 @@ void LaserScanMatcher::createTfFromXYTheta(
 }
 
 } // namespace scan_tools
-
