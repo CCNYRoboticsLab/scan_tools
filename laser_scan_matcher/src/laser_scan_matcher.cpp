@@ -49,7 +49,6 @@ LaserScanMatcher::LaserScanMatcher(ros::NodeHandle nh, ros::NodeHandle nh_privat
   received_imu_(false),
   received_odom_(false),
   received_vel_(false),
-  n_times_(10)
 {
   ROS_INFO("Starting LaserScanMatcher");
 
@@ -476,22 +475,22 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
 
   if (output_.valid)
   {
-    if (n_times_)
-    {
-      ROS_WARN("cov_x_m.size1: %zu  cov_x_m.size2: %zu  cov_x_m.tda: %zu",
-                output_.cov_x_m->size1,
-                output_.cov_x_m->size2,
-                output_.cov_x_m->tda);
-      ROS_WARN("cov_dx_dy1_m.size1: %zu  cov_dx_dy1_m.size2: %zu  cov_dx_dy1_m.tda: %zu",
-                output_.dx_dy1_m->size1,
-                output_.dx_dy1_m->size2,
-                output_.dx_dy1_m->tda);
-      ROS_WARN("cov_dx_dy2_m.size1: %zu  cov_dx_dy2_m.size2: %zu  cov_dx_dy2_m.tda: %zu",
-                output_.dx_dy2_m->size1,
-                output_.dx_dy2_m->size2,
-                output_.dx_dy2_m->tda);
-      n_times_--;
-    }
+    // Returns giant (uninitialized?) values
+    // ROS_WARN("cov_x_m.size1: %zu  cov_x_m.size2: %zu  cov_x_m.tda: %zu",
+    //           output_.cov_x_m->size1,
+    //           output_.cov_x_m->size2,
+    //           output_.cov_x_m->tda);
+    // Segfaults
+    // ROS_WARN_THROTTLE(1, "cov_x_m[0,0]: %f", gsl_matrix_get(output_.cov_x_m, 1, 1));
+    //// Segfaults
+    //ROS_WARN("cov_dx_dy1_m.size1: %zu  cov_dx_dy1_m.size2: %zu  cov_dx_dy1_m.tda: %zu",
+    //          output_.dx_dy1_m->size1,
+    //          output_.dx_dy1_m->size2,
+    //          output_.dx_dy1_m->tda);
+    //ROS_WARN("cov_dx_dy2_m.size1: %zu  cov_dx_dy2_m.size2: %zu  cov_dx_dy2_m.tda: %zu",
+    //          output_.dx_dy2_m->size1,
+    //          output_.dx_dy2_m->size2,
+    //          output_.dx_dy2_m->tda);
     // the correction of the laser's position, in the laser frame
     tf::Transform corr_ch_l;
     createTfFromXYTheta(output_.x[0], output_.x[1], output_.x[2], corr_ch_l);
