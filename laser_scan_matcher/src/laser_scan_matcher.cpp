@@ -49,7 +49,7 @@ LaserScanMatcher::LaserScanMatcher(ros::NodeHandle nh, ros::NodeHandle nh_privat
   received_imu_(false),
   received_odom_(false),
   received_vel_(false),
-  only_once_(true)
+  n_times_(10)
 {
   ROS_INFO("Starting LaserScanMatcher");
 
@@ -476,7 +476,7 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
 
   if (output_.valid)
   {
-    if (only_once_)
+    if (n_times_)
     {
       ROS_WARN("cov_x_m.size1: %zu  cov_x_m.size2: %zu  cov_x_m.tda: %zu",
                 output_.cov_x_m->size1,
@@ -490,7 +490,7 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
                 output_.dx_dy2_m->size1,
                 output_.dx_dy2_m->size2,
                 output_.dx_dy2_m->tda);
-      only_once_ = false;
+      n_times_--;
     }
     // the correction of the laser's position, in the laser frame
     tf::Transform corr_ch_l;

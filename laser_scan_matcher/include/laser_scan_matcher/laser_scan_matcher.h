@@ -136,7 +136,7 @@ class LaserScanMatcher
     bool received_imu_;
     bool received_odom_;
     bool received_vel_;
-    bool only_once_;
+    int n_times_;
 
     tf::Transform f2b_;    // fixed-to-base tf (pose of base frame in fixed frame)
     tf::Transform f2b_kf_; // pose of the last keyframe scan in fixed frame
