@@ -48,7 +48,8 @@ LaserScanMatcher::LaserScanMatcher(ros::NodeHandle nh, ros::NodeHandle nh_privat
   initialized_(false),
   received_imu_(false),
   received_odom_(false),
-  received_vel_(false)
+  received_vel_(false),
+  only_once_(true)
 {
   ROS_INFO("Starting LaserScanMatcher");
 
@@ -475,6 +476,22 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
 
   if (output_.valid)
   {
+    if (only_once_)
+    {
+      ROS_WARN("cov_x_m.size1: %zu  cov_x_m.size2: %zu  cov_x_m.tda: %zu",
+                output_.cov_x_m->size1,
+                output_.cov_x_m->size2,
+                output_.cov_x_m->tda);
+      ROS_WARN("cov_dx_dy1_m.size1: %zu  cov_dx_dy1_m.size2: %zu  cov_dx_dy1_m.tda: %zu",
+                output_.dx_dy1_m->size1,
+                output_.dx_dy1_m->size2,
+                output_.dx_dy1_m->tda);
+      ROS_WARN("cov_dx_dy2_m.size1: %zu  cov_dx_dy2_m.size2: %zu  cov_dx_dy2_m.tda: %zu",
+                output_.dx_dy2_m->size1,
+                output_.dx_dy2_m->size2,
+                output_.dx_dy2_m->tda);
+      only_once_ = false;
+    }
     // the correction of the laser's position, in the laser frame
     tf::Transform corr_ch_l;
     createTfFromXYTheta(output_.x[0], output_.x[1], output_.x[2], corr_ch_l);
@@ -517,13 +534,26 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
       pose_with_covariance_msg = boost::make_shared<geometry_msgs::PoseWithCovariance>();
       tf::poseTFToMsg(f2b_, pose_with_covariance_msg->pose);
 
-      pose_with_covariance_msg->covariance = boost::assign::list_of
-          (static_cast<double>(position_covariance_[0])) (0)  (0)  (0)  (0)  (0)
-          (0)  (static_cast<double>(position_covariance_[1])) (0)  (0)  (0)  (0)
-          (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
-          (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
-          (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
-          (0)  (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[2]));
+      if (input_.do_compute_covariance)
+      {
+        pose_with_covariance_msg->covariance = boost::assign::list_of
+        (static_cast<double>(position_covariance_[0])) (0)  (0)  (0)  (0)  (0)
+        (0)  (static_cast<double>(position_covariance_[1])) (0)  (0)  (0)  (0)
+        (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
+        (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
+        (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
+        (0)  (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[2]));
+      }
+      else
+      {
+        pose_with_covariance_msg->covariance = boost::assign::list_of
+            (static_cast<double>(position_covariance_[0])) (0)  (0)  (0)  (0)  (0)
+            (0)  (static_cast<double>(position_covariance_[1])) (0)  (0)  (0)  (0)
+            (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
+            (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
+            (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
+            (0)  (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[2]));
+      }
 
       pose_with_covariance_publisher_.publish(pose_with_covariance_msg);
     }
