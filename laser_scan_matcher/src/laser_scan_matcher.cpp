@@ -478,21 +478,21 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
     if (input_.do_compute_covariance)
     {
       // Returns giant (uninitialized?) values
-      ROS_WARN_THROTTLE(1, "cov_x_m.size1: %zu  cov_x_m.size2: %zu  cov_x_m.tda: %zu",
+      ROS_INFO_THROTTLE(1, "cov_x_m.size1: %zu  cov_x_m.size2: %zu  cov_x_m.tda: %zu",
                 output_.cov_x_m->size1,
                 output_.cov_x_m->size2,
                 output_.cov_x_m->tda);
       // Segfaults
       // ROS_WARN_THROTTLE(1, "cov_x_m[0,0]: %f", gsl_matrix_get(output_.cov_x_m, 1, 1));
       //// Segfaults
-      //ROS_WARN("cov_dx_dy1_m.size1: %zu  cov_dx_dy1_m.size2: %zu  cov_dx_dy1_m.tda: %zu",
-      //          output_.dx_dy1_m->size1,
-      //          output_.dx_dy1_m->size2,
-      //          output_.dx_dy1_m->tda);
-      //ROS_WARN("cov_dx_dy2_m.size1: %zu  cov_dx_dy2_m.size2: %zu  cov_dx_dy2_m.tda: %zu",
-      //          output_.dx_dy2_m->size1,
-      //          output_.dx_dy2_m->size2,
-      //          output_.dx_dy2_m->tda);
+      ROS_INFO_THROTTLE(1, "cov_dx_dy1_m.size1: %zu  cov_dx_dy1_m.size2: %zu  cov_dx_dy1_m.tda: %zu",
+               output_.dx_dy1_m->size1,
+               output_.dx_dy1_m->size2,
+               output_.dx_dy1_m->tda);
+      ROS_INFO_THROTTLE(1, "cov_dx_dy2_m.size1: %zu  cov_dx_dy2_m.size2: %zu  cov_dx_dy2_m.tda: %zu",
+               output_.dx_dy2_m->size1,
+               output_.dx_dy2_m->size2,
+               output_.dx_dy2_m->tda);
     }
     else
     {
