@@ -68,4 +68,5 @@ install(FILES laser_scan_matcher_nodelet.xml
 install(DIRECTORY demo
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION} )
 
-add_rostest(test/run.test) 
+add_rostest(test/run.test)
+add_rostest(test/covariance.test)
