@@ -575,6 +575,15 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
 
       pose_with_covariance_stamped_publisher_.publish(pose_with_covariance_stamped_msg);
     }
+
+    // Free covariance gsl matrices to avoid leaking memory
+    if (input_.do_compute_covariance)
+    {
+      gsl_matrix_free(output_.cov_x_m);
+      gsl_matrix_free(output_.dx_dy1_m);
+      gsl_matrix_free(output_.dx_dy2_m);
+    }
+    
     if (publish_tf_)
     {
       tf::StampedTransform transform_msg (f2b_, time, fixed_frame_, base_frame_);
