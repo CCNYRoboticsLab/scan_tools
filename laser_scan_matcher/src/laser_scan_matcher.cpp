@@ -64,6 +64,11 @@ LaserScanMatcher::LaserScanMatcher(ros::NodeHandle nh, ros::NodeHandle nh_privat
   input_.laser[1] = 0.0;
   input_.laser[2] = 0.0;
 
+  // Initialize output_ vectors as Null for error-checking
+  output_.cov_x_m = 0;
+  output_.dx_dy1_m = 0;
+  output_.dx_dy2_m = 0;
+
   // **** publishers
 
   if (publish_pose_)
@@ -468,6 +473,23 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
   input_.first_guess[1] = pr_ch_l.getOrigin().getY();
   input_.first_guess[2] = tf::getYaw(pr_ch_l.getRotation());
 
+  // If they are non-Null, free covariance gsl matrices to avoid leaking memory
+  if (output_.cov_x_m)
+  {
+    gsl_matrix_free(output_.cov_x_m);
+    output_.cov_x_m = 0;
+  }
+  if (output_.dx_dy1_m)
+  {
+    gsl_matrix_free(output_.dx_dy1_m);
+    output_.dx_dy1_m = 0;
+  }
+  if (output_.dx_dy2_m)
+  {
+    gsl_matrix_free(output_.dx_dy2_m);
+    output_.dx_dy2_m = 0;
+  }
+
   // *** scan match - using point to line icp from CSM
 
   sm_icp(&input_, &output_);
@@ -576,14 +598,6 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
       pose_with_covariance_stamped_publisher_.publish(pose_with_covariance_stamped_msg);
     }
 
-    // Free covariance gsl matrices to avoid leaking memory
-    if (input_.do_compute_covariance)
-    {
-      gsl_matrix_free(output_.cov_x_m);
-      gsl_matrix_free(output_.dx_dy1_m);
-      gsl_matrix_free(output_.dx_dy2_m);
-    }
-    
     if (publish_tf_)
     {
       tf::StampedTransform transform_msg (f2b_, time, fixed_frame_, base_frame_);
