@@ -2,8 +2,8 @@
 Changelog for package scan_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.3.2 (2016-03-19)
+------------------
 * [feat][laser_scan_matcher] Publish Poses with Covariance (`#44 <https://github.com/ccny-ros-pkg/scan_tools/pull/44>`_)
 * [sys][laser_scan_matcher] Remove csm cmake macro; csm is now built upstream since (`#31 <https://github.com/ccny-ros-pkg/scan_tools/pull/45>`_)
 * Contributors: Eric Tappan, Isaac I.Y. Saito
