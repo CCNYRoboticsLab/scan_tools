@@ -2,6 +2,12 @@
 Changelog for package laser_scan_matcher
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* [feat] Publish Poses with Covariance (`#44 <https://github.com/ccny-ros-pkg/scan_tools/pull/44>`_)
+* [sys] Remove csm cmake macro; csm is now built upstream since (`#31 <https://github.com/ccny-ros-pkg/scan_tools/pull/45>`_)
+* Contributors: Eric Tappan, Isaac I.Y. Saito
+
 0.3.1 (2015-12-18)
 ------------------
 * [sys] Remove obsolete dependency. Alphabetize.

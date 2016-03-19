@@ -2,6 +2,9 @@
 Changelog for package polar_scan_matcher
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.3.1 (2015-12-18)
 ------------------
 

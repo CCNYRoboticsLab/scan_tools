@@ -2,6 +2,9 @@
 Changelog for package scan_to_cloud_converter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.3.1 (2015-12-18)
 ------------------
 

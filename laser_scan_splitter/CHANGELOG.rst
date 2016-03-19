@@ -2,6 +2,9 @@
 Changelog for package laser_scan_splitter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.3.1 (2015-12-18)
 ------------------
 
