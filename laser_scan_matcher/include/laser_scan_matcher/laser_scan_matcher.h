@@ -43,6 +43,8 @@
 #include <sensor_msgs/LaserScan.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Pose2D.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <geometry_msgs/PoseWithCovariance.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <tf/transform_datatypes.h>
@@ -91,6 +93,8 @@ class LaserScanMatcher
 
     ros::Publisher  pose_publisher_;
     ros::Publisher  pose_stamped_publisher_;
+    ros::Publisher  pose_with_covariance_publisher_;
+    ros::Publisher  pose_with_covariance_stamped_publisher_;
 
     // **** parameters
 
@@ -101,7 +105,11 @@ class LaserScanMatcher
     double cloud_res_;
     bool publish_tf_;
     bool publish_pose_;
+    bool publish_pose_with_covariance_;
     bool publish_pose_stamped_;
+    bool publish_pose_with_covariance_stamped_;
+    std::vector<double> position_covariance_;
+    std::vector<double> orientation_covariance_;
 
     bool use_cloud_input_;
 
