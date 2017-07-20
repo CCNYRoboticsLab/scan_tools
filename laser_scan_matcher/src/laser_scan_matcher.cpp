@@ -462,12 +462,12 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
 
   // account for the change since the last kf, in the fixed frame
 
-  pr_ch = pr_ch * (f2b_ * f2b_kf_.inverse());
+  pr_ch = f2b_kf_.inverseTimes(f2b_) * pr_ch;
 
   // the predicted change of the laser's position, in the laser frame
 
   tf::Transform pr_ch_l;
-  pr_ch_l = laser_to_base_ * f2b_.inverse() * pr_ch * f2b_ * base_to_laser_ ;
+  pr_ch_l = laser_to_base_ * pr_ch * base_to_laser_ ;
 
   input_.first_guess[0] = pr_ch_l.getOrigin().getX();
   input_.first_guess[1] = pr_ch_l.getOrigin().getY();
