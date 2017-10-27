@@ -39,8 +39,7 @@
 
 typedef scan_tools::LaserScanMatcherNodelet LaserScanMatcherNodelet;
 
-PLUGINLIB_DECLARE_CLASS(laser_scan_matcher, LaserScanMatcherNodelet,
-  LaserScanMatcherNodelet, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(LaserScanMatcherNodelet, nodelet::Nodelet)
 
 void LaserScanMatcherNodelet::onInit()
 {
