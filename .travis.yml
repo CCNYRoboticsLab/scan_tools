@@ -15,22 +15,28 @@ env:
   matrix:
     - USE_DEB=true   ROS_DISTRO="indigo"   ROS_REPOSITORY_PATH=http://packages.ros.org/ros/ubuntu
     - USE_DEB=true   ROS_DISTRO="indigo"   ROS_REPOSITORY_PATH=http://packages.ros.org/ros-shadow-fixed/ubuntu
-    - USE_DEB=false  ROS_DISTRO=indigo     ROS_REPOSITORY_PATH=http://packages.ros.org/ros/ubuntu  UPSTREAM_WORKSPACE=file  $ROSINSTALL_FILENAME=".rosinstall"
     - ROS_DISTRO="indigo" PRERELEASE=true
     - USE_DEB=true   ROS_DISTRO="jade"     ROS_REPOSITORY_PATH=http://packages.ros.org/ros/ubuntu
     - USE_DEB=true   ROS_DISTRO="jade"     ROS_REPOSITORY_PATH=http://packages.ros.org/ros-shadow-fixed/ubuntu
     - ROS_DISTRO="jade" PRERELEASE=true
-    - USE_DEB=false  ROS_DISTRO=jade       ROS_REPOSITORY_PATH=http://packages.ros.org/ros/ubuntu  UPSTREAM_WORKSPACE=file  $ROSINSTALL_FILENAME=".rosinstall"
     - USE_DEB=true   ROS_DISTRO="kinetic"  ROS_REPOSITORY_PATH=http://packages.ros.org/ros/ubuntu
     - USE_DEB=true   ROS_DISTRO="kinetic"  ROS_REPOSITORY_PATH=http://packages.ros.org/ros-shadow-fixed/ubuntu
     - ROS_DISTRO="kinetic" PRERELEASE=true
+    - USE_DEB=true   ROS_DISTRO="lunar"  ROS_REPOSITORY_PATH=http://packages.ros.org/ros/ubuntu
+    - USE_DEB=true   ROS_DISTRO="lunar"  ROS_REPOSITORY_PATH=http://packages.ros.org/ros-shadow-fixed/ubuntu
+    - ROS_DISTRO="lunar" PRERELEASE=true
 matrix:
   allow_failures:
     - env: USE_DEB=false  ROS_DISTRO=indigo ROS_REPOSITORY_PATH=http://packages.ros.org/ros/ubuntu
     - env: ROS_DISTRO="indigo" PRERELEASE=true
+    - env: USE_DEB=true   ROS_DISTRO="jade"     ROS_REPOSITORY_PATH=http://packages.ros.org/ros/ubuntu
+    - env: USE_DEB=true   ROS_DISTRO="jade"     ROS_REPOSITORY_PATH=http://packages.ros.org/ros-shadow-fixed/ubuntu
     - env: USE_DEB=false  ROS_DISTRO=jade   ROS_REPOSITORY_PATH=http://packages.ros.org/ros/ubuntu
     - env: ROS_DISTRO="jade" PRERELEASE=true
     - env: ROS_DISTRO="kinetic" PRERELEASE=true
+    - env: USE_DEB=true   ROS_DISTRO="lunar"  ROS_REPOSITORY_PATH=http://packages.ros.org/ros/ubuntu
+    - env: USE_DEB=true   ROS_DISTRO="lunar"  ROS_REPOSITORY_PATH=http://packages.ros.org/ros-shadow-fixed/ubuntu
+    - env: ROS_DISTRO="lunar" PRERELEASE=true
 install:
   - git clone https://github.com/ros-industrial/industrial_ci.git .ci_config
 script:
