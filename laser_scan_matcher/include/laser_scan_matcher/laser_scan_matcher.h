@@ -90,6 +90,7 @@ class LaserScanMatcher
 
     tf::Transform base_to_laser_; // static, cached
     tf::Transform laser_to_base_; // static, cached, calculated from base_to_laser_
+    tf::Transform last_used_odom_tf_, latest_odom_tf_, odom_increment_tf_;
 
     ros::Publisher  pose_publisher_;
     ros::Publisher  pose_stamped_publisher_;
@@ -138,14 +139,13 @@ class LaserScanMatcher
     bool received_vel_;
 
     tf::Transform f2b_;    // fixed-to-base tf (pose of base frame in fixed frame)
-    tf::Transform f2b_kf_; // pose of the last keyframe scan in fixed frame
+    tf::Transform f2b_kf_; // pose of the base in fixed frame when last keyframe is taken
 
     ros::Time last_icp_time_;
 
     sensor_msgs::Imu latest_imu_msg_;
     sensor_msgs::Imu last_used_imu_msg_;
     nav_msgs::Odometry latest_odom_msg_;
-    nav_msgs::Odometry last_used_odom_msg_;
 
     geometry_msgs::Twist latest_vel_msg_;
 
@@ -179,8 +179,7 @@ class LaserScanMatcher
 
     bool newKeyframeNeeded(const tf::Transform& d);
 
-    void getPrediction(double& pr_ch_x, double& pr_ch_y,
-                       double& pr_ch_a, double dt);
+    void getPrediction(tf::Transform& inc_tf, double dt);
 
     void createTfFromXYTheta(double x, double y, double theta, tf::Transform& t);
 };

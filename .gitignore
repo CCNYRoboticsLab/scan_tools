@@ -5,6 +5,7 @@ lib/
 docs/
 msg_gen/
 srv_gen/
+csm/
 *.*~
 __init__.py
 __init__.pyc

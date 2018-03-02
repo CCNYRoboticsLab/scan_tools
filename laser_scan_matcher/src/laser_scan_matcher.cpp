@@ -60,6 +60,9 @@ LaserScanMatcher::LaserScanMatcher(ros::NodeHandle nh, ros::NodeHandle nh_privat
 
   f2b_.setIdentity();
   f2b_kf_.setIdentity();
+  odom_increment_tf_.setIdentity();
+  last_used_odom_tf_.setIdentity();
+  latest_odom_tf_.setIdentity();
   input_.laser[0] = 0.0;
   input_.laser[1] = 0.0;
   input_.laser[2] = 0.0;
@@ -352,7 +355,6 @@ void LaserScanMatcher::odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg
   latest_odom_msg_ = *odom_msg;
   if (!received_odom_)
   {
-    last_used_odom_msg_ = *odom_msg;
     received_odom_ = true;
   }
 }
@@ -431,7 +433,7 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
   // The scans are always in the laser frame
   // The reference scan (prevLDPcan_) has a pose of [0, 0, 0]
   // The new scan (currLDPScan) has a pose equal to the movement
-  // of the laser in the laser frame since the last scan
+  // of the laser in the laser frame since the last keyframe scan
   // The computed correction is then propagated using the tf machinery
 
   prev_ldp_scan_->odometry[0] = 0.0;
@@ -452,26 +454,22 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
   // **** estimated change since last scan
 
   double dt = (time - last_icp_time_).toSec();
-  double pr_ch_x, pr_ch_y, pr_ch_a;
-  getPrediction(pr_ch_x, pr_ch_y, pr_ch_a, dt);
 
-  // the predicted change of the laser's position, in the fixed frame
+  // the predicted change of the base's position, in the base_frame
+  getPrediction(odom_increment_tf_, dt);  
+  
+  // we have already feed the keyframe's scan: prev_ldp_scan_, 
+  // and the current scan: curr_ldp_scan into the sm_icp().
+  // now, we will need a prediction of how the current scan's pose
+  // will look like.
 
-  tf::Transform pr_ch;
-  createTfFromXYTheta(pr_ch_x, pr_ch_y, pr_ch_a, pr_ch);
-
-  // account for the change since the last kf, in the fixed frame
-
-  pr_ch = pr_ch * (f2b_ * f2b_kf_.inverse());
-
-  // the predicted change of the laser's position, in the laser frame
-
+  // the predicted change of the laser's position, in the key laser frame
   tf::Transform pr_ch_l;
-  pr_ch_l = laser_to_base_ * f2b_.inverse() * pr_ch * f2b_ * base_to_laser_ ;
-
+  pr_ch_l = laser_to_base_ * (f2b_kf_.inverse()) * f2b_ * odom_increment_tf_ * base_to_laser_;
   input_.first_guess[0] = pr_ch_l.getOrigin().getX();
   input_.first_guess[1] = pr_ch_l.getOrigin().getY();
   input_.first_guess[2] = tf::getYaw(pr_ch_l.getRotation());
+
 
   // If they are non-Null, free covariance gsl matrices to avoid leaking memory
   if (output_.cov_x_m)
@@ -493,20 +491,19 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
   // *** scan match - using point to line icp from CSM
 
   sm_icp(&input_, &output_);
-  tf::Transform corr_ch;
+  tf::Transform corr_ch_l;
 
   if (output_.valid)
   {
 
-    // the correction of the laser's position, in the laser frame
-    tf::Transform corr_ch_l;
+    // the pose of the current laser scan, in the last key laser frame
     createTfFromXYTheta(output_.x[0], output_.x[1], output_.x[2], corr_ch_l);
+    ROS_DEBUG("corr_ch_l:[%f, %f, %f]", corr_ch_l.getOrigin().x(), 
+										corr_ch_l.getOrigin().y(), 
+										tf::getYaw(corr_ch_l.getRotation()) );
 
-    // the correction of the base's position, in the base frame
-    corr_ch = base_to_laser_ * corr_ch_l * laser_to_base_;
-
-    // update the pose in the world frame
-    f2b_ = f2b_kf_ * corr_ch;
+    // update the base pose in the world frame
+    f2b_ = f2b_kf_ * base_to_laser_ * corr_ch_l * laser_to_base_;
 
     // **** publish
 
@@ -606,18 +603,19 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
   }
   else
   {
-    corr_ch.setIdentity();
+    corr_ch_l.setIdentity();
     ROS_WARN("Error in scan matching");
   }
 
   // **** swap old and new
 
-  if (newKeyframeNeeded(corr_ch))
+  if (newKeyframeNeeded(corr_ch_l))
   {
     // generate a keyframe
     ld_free(prev_ldp_scan_);
     prev_ldp_scan_ = curr_ldp_scan;
     f2b_kf_ = f2b_;
+    //EWINGROS_INFO("key!");
   }
   else
   {
@@ -795,43 +793,38 @@ bool LaserScanMatcher::getBaseToLaserTf (const std::string& frame_id)
 
 // returns the predicted change in pose (in fixed frame)
 // since the last time we did icp
-void LaserScanMatcher::getPrediction(double& pr_ch_x, double& pr_ch_y,
-                                     double& pr_ch_a, double dt)
+void LaserScanMatcher::getPrediction(tf::Transform& inc_tf, double dt)
 {
   boost::mutex::scoped_lock(mutex_);
 
   // **** base case - no input available, use zero-motion model
-  pr_ch_x = 0.0;
-  pr_ch_y = 0.0;
-  pr_ch_a = 0.0;
-
+  double pr_ch_x = 0.0;
+  double pr_ch_y = 0.0;
+  double pr_ch_a = 0.0;
+  
   // **** use velocity (for example from ab-filter)
   if (use_vel_)
   {
     pr_ch_x = dt * latest_vel_msg_.linear.x;
     pr_ch_y = dt * latest_vel_msg_.linear.y;
     pr_ch_a = dt * latest_vel_msg_.angular.z;
-
-    if      (pr_ch_a >= M_PI) pr_ch_a -= 2.0 * M_PI;
-    else if (pr_ch_a < -M_PI) pr_ch_a += 2.0 * M_PI;
+    createTfFromXYTheta( pr_ch_x, pr_ch_y, pr_ch_a,
+						 inc_tf );
   }
 
   // **** use wheel odometry
   if (use_odom_ && received_odom_)
   {
-    pr_ch_x = latest_odom_msg_.pose.pose.position.x -
-              last_used_odom_msg_.pose.pose.position.x;
-
-    pr_ch_y = latest_odom_msg_.pose.pose.position.y -
-              last_used_odom_msg_.pose.pose.position.y;
-
-    pr_ch_a = tf::getYaw(latest_odom_msg_.pose.pose.orientation) -
-              tf::getYaw(last_used_odom_msg_.pose.pose.orientation);
-
-    if      (pr_ch_a >= M_PI) pr_ch_a -= 2.0 * M_PI;
-    else if (pr_ch_a < -M_PI) pr_ch_a += 2.0 * M_PI;
-
-    last_used_odom_msg_ = latest_odom_msg_;
+    createTfFromXYTheta(latest_odom_msg_.pose.pose.position.x, 
+						latest_odom_msg_.pose.pose.position.y, 
+						tf::getYaw(latest_odom_msg_.pose.pose.orientation),
+						latest_odom_tf_	);
+	
+    inc_tf = last_used_odom_tf_.inverse() * latest_odom_tf_;
+    ROS_DEBUG("increment_tf:[%f, %f, %f", 	inc_tf.getOrigin().x(),
+											inc_tf.getOrigin().y(),
+											inc_tf.getRotation().getAngle() );
+	last_used_odom_tf_ = latest_odom_tf_;
   }
 
   // **** use imu
@@ -839,12 +832,10 @@ void LaserScanMatcher::getPrediction(double& pr_ch_x, double& pr_ch_y,
   {
     pr_ch_a = tf::getYaw(latest_imu_msg_.orientation) -
               tf::getYaw(last_used_imu_msg_.orientation);
-
-    if      (pr_ch_a >= M_PI) pr_ch_a -= 2.0 * M_PI;
-    else if (pr_ch_a < -M_PI) pr_ch_a += 2.0 * M_PI;
-
+	createTfFromXYTheta(0, 0, pr_ch_a, inc_tf );
     last_used_imu_msg_ = latest_imu_msg_;
   }
+
 }
 
 void LaserScanMatcher::createTfFromXYTheta(
