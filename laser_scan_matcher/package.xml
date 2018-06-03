@@ -6,12 +6,11 @@
      An incremental laser scan matcher, using Andrea Censi's Canonical Scan Matcher (CSM) implementation. See <a href="http://censi.mit.edu/software/csm/">the web site</a> for more about CSM. NOTE the CSM library is licensed under the GNU Lesser General Public License v3, whereas the rest of the code is released under the BSD license.
     </p>
   </description>
-  <maintainer email="ccnyroboticslab@gmail.com">Ivan Dryanovski</maintainer>
   <maintainer email="cjaramillo@gc.cuny.edu">Carlos</maintainer>
-  <maintainer email="dev@opensource-robotics.tokyo.jp">Isaac I.Y. Saito</maintainer>
+  <maintainer email="130s@2000.jukuin.keio.ac.jp">Isaac I.Y. Saito</maintainer>
 
   <url>http://wiki.ros.org/laser_scan_matcher</url>
-  <author>Ivan Dryanovski</author>
+  <author email="ccnyroboticslab@gmail.com">Ivan Dryanovski</author>
   <author>William Morris</author>
   <author>Andrea Censi</author>
 
