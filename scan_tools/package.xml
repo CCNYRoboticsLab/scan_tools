@@ -6,9 +6,9 @@
     Laser scan processing tools.
   </description>
 
-  <maintainer email="ccnyroboticslab@gmail.com">Ivan Dryanovski</maintainer>
+  <author email="ccnyroboticslab@gmail.com">Ivan Dryanovski</author>
   <maintainer email="cjaramillo@gc.cuny.edu">Carlos</maintainer>
-  <maintainer email="iiysaito@opensource-robotics.tokyo.jp">Isaac I.Y. Saito</maintainer>
+  <maintainer email="130s@2000.jukuin.keio.ac.jp">Isaac I.Y. Saito</maintainer>
 
   <license>BSD</license>
   <license>LGPLv3</license>
