@@ -35,25 +35,17 @@
  *  on Robotics and Automation (ICRA), 2008
  */
 
-#ifndef LASER_SCAN_MATCHER_LASER_SCAN_MATCHER_NODELET_H
-#define LASER_SCAN_MATCHER_LASER_SCAN_MATCHER_NODELET_H
+#include <laser_scan_matcher/laser_scan_matcher_component.h>
 
-#include <nodelet/nodelet.h>
-#include <pluginlib/class_list_macros.h>
+typedef scan_tools::LaserScanMatcherComponent LaserScanMatcherComponent;
 
-#include <laser_scan_matcher/laser_scan_matcher.h>
-
-namespace scan_tools {
-
-class LaserScanMatcherNodelet : public nodelet::Nodelet
+LaserScanMatcherComponent::LaserScanMatcherComponent(const rclcpp::NodeOptions& options)
+  : Node("laser_scan_matcher", options)
 {
-  public:
-    virtual void onInit ();
+  RCLCPP_INFO(get_logger(), "Initializing LaserScanMatcher component");
+  scan_matcher_ = std::make_unique<LaserScanMatcher>(shared_from_this());
+}
 
-  private:
-    boost::shared_ptr<LaserScanMatcher> scan_matcher_;
-};
-
-} // namespace scan_tools
-
-#endif // LASER_SCAN_MATCHER_LASER_SCAN_MATCHER_NODELET_H
+// Register the component with class_loader
+#include "rclcpp_components/register_node_macro.hpp"
+RCLCPP_COMPONENTS_REGISTER_NODE(LaserScanMatcherComponent)
