@@ -1,6 +1,6 @@
 <package>
   <name>polar_scan_matcher</name>
-  <version>0.3.2</version>
+  <version>0.3.3</version>
   <description>
     <p>
     A wrapper around Polar Scan Matcher by Albert Diosi and Lindsay Kleeman, used for laser scan registration.

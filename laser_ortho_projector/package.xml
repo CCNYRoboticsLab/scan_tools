@@ -1,6 +1,6 @@
 <package>
   <name>laser_ortho_projector</name>
-  <version>0.3.2</version>
+  <version>0.3.3</version>
   <description>
     The laser_ortho_projector package calculates orthogonal projections of LaserScan messages.
   </description>

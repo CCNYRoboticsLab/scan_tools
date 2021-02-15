@@ -2,6 +2,11 @@
 Changelog for package scan_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.3 (2021-02-15)
+------------------
+* First release for ROS Melodic, Noetic (supporting Ubuntu 18.04, 20.04)
+* [maintenance] update to use non deprecated pluginlib macro
+
 0.3.2 (2016-03-19)
 ------------------
 * [feat][laser_scan_matcher] Publish Poses with Covariance (`#44 <https://github.com/ccny-ros-pkg/scan_tools/pull/44>`_)

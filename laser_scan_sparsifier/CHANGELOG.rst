@@ -2,6 +2,10 @@
 Changelog for package laser_scan_sparsifier
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.3 (2021-02-15)
+------------------
+* update to use non deprecated pluginlib macro
+
 0.3.2 (2016-03-19)
 ------------------
 

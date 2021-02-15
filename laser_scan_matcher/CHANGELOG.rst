@@ -2,6 +2,10 @@
 Changelog for package laser_scan_matcher
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.3 (2021-02-15)
+------------------
+* update to use non deprecated pluginlib macro
+
 0.3.2 (2016-03-19)
 ------------------
 * [feat] Publish Poses with Covariance (`#44 <https://github.com/ccny-ros-pkg/scan_tools/pull/44>`_)
