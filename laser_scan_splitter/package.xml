@@ -1,6 +1,6 @@
 <package>
   <name>laser_scan_splitter</name>
-  <version>0.3.2</version>
+  <version>0.3.3</version>
   <description>
     The laser_scan_splitter takes in a LaserScan message and splits it into a number of other LaserScan messages. Each of the resulting laser scans can be assigned an arbitrary coordinate frame, and is published on a separate topic.
   </description>
