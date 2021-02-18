@@ -17,32 +17,32 @@
   <license>BSD</license>
   <license>LGPLv3</license>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
   <build_depend>csm</build_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>libpcl-all-dev</build_depend>
   <build_depend>nav_msgs</build_depend>
-  <build_depend>nodelet</build_depend>
+  <build_depend>rclcpp_components</build_depend>
   <build_depend>pcl_conversions</build_depend>
   <build_depend>pcl_ros</build_depend>
-  <build_depend>roscpp</build_depend>
+  <build_depend>rclcpp</build_depend>
   <build_depend>sensor_msgs</build_depend>
-  <build_depend>tf</build_depend>
+  <build_depend>tf2</build_depend>
 
   <run_depend>csm</run_depend>
   <run_depend>geometry_msgs</run_depend>
   <run_depend>libpcl-all</run_depend>
   <run_depend>nav_msgs</run_depend>
-  <run_depend>nodelet</run_depend>
+  <run_depend>rclcpp_components</run_depend>
   <run_depend>pcl_ros</run_depend>
   <run_depend>pcl_conversions</run_depend>
-  <run_depend>roscpp</run_depend>
+  <run_depend>rclcpp</run_depend>
   <run_depend>sensor_msgs</run_depend>
-  <run_depend>tf</run_depend>
+  <run_depend>tf2</run_depend>
 
   <export>
-    <nodelet plugin="${prefix}/laser_scan_matcher_nodelet.xml" />
+    <build_type>ament_cmake</build_type>
   </export>
 
 </package>

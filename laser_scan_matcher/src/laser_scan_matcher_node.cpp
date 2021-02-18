@@ -39,10 +39,9 @@
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "LaserScanMatcher");
-  ros::NodeHandle nh;
-  ros::NodeHandle nh_private("~");
-  scan_tools::LaserScanMatcher laser_scan_matcher(nh, nh_private);
-  ros::spin();
+  rclcpp::init(argc, argv);
+  auto node = rclcpp::Node::make_shared("laser_scan_matcher_node");
+  scan_tools::LaserScanMatcher laser_scan_matcher(node);
+  rclcpp::spin(node);
   return 0;
 }
