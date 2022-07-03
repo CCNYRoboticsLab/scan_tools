@@ -17,13 +17,8 @@
 
   <buildtool_depend>catkin</buildtool_depend>
 
-  <run_depend>laser_ortho_projector</run_depend>
   <run_depend>laser_scan_matcher</run_depend>
-  <run_depend>laser_scan_sparsifier</run_depend>
-  <run_depend>laser_scan_splitter</run_depend>
-  <run_depend>ncd_parser</run_depend>
   <run_depend>scan_to_cloud_converter</run_depend>
-  <run_depend>polar_scan_matcher</run_depend>
 
   <export>
     <metapackage/>
