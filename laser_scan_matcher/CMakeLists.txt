@@ -1,72 +1,46 @@
-cmake_minimum_required(VERSION 2.8.3)
-project(laser_scan_matcher)
+cmake_minimum_required(VERSION 3.5)
 
-# List C++ dependencies on ros packages
-set( ROS_CXX_DEPENDENCIES
-  roscpp
-  nodelet
-  sensor_msgs
-  tf
-  pcl_ros
-  pcl_conversions
-  geometry_msgs
-  nav_msgs)
+project(ros2_laser_scan_matcher)
 
-# Find catkin and all required ROS components
-find_package(catkin REQUIRED COMPONENTS ${ROS_CXX_DEPENDENCIES} rostest)
-find_package(PCL REQUIRED QUIET)
+find_package(ament_cmake REQUIRED)
+find_package(csm REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(laser_geometry REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_sensor_msgs REQUIRED)
 
-# Find csm project
-find_package(PkgConfig)
-pkg_check_modules(csm REQUIRED csm)
+include_directories(
+  include
+  ${EIGEN3_INCLUDE_DIRS}
+  )
 
-# Set include directories
-include_directories(include ${catkin_INCLUDE_DIRS} ${csm_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
-link_directories(${csm_LIBRARY_DIRS})
+add_executable(laser_scan_matcher src/laser_scan_matcher.cpp)
 
-# Declare info that other packages need to import library generated here
-catkin_package(
-    INCLUDE_DIRS include
-    LIBRARIES laser_scan_matcher
-    CATKIN_DEPENDS ${ROS_CXX_DEPENDENCIES}
+target_include_directories(laser_scan_matcher
+  PRIVATE
+  "include"
 )
 
-#Create library
-add_library(laser_scan_matcher src/laser_scan_matcher.cpp)
+ament_target_dependencies(laser_scan_matcher
+  csm
+  Eigen3
+  geometry_msgs
+  laser_geometry
+  nav_msgs
+  rclcpp
+  sensor_msgs
+  tf2
+  tf2_geometry_msgs
+  tf2_ros
+  tf2_sensor_msgs
+)
 
-#Note we don't link against pcl as we're using header-only parts of the library
-target_link_libraries( laser_scan_matcher ${catkin_LIBRARIES} ${csm_LIBRARIES})
-add_dependencies(laser_scan_matcher ${csm_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+install(TARGETS laser_scan_matcher DESTINATION lib/${PROJECT_NAME})
 
-#Create nodelet
-add_library(laser_scan_matcher_nodelet src/laser_scan_matcher_nodelet.cpp)
-target_link_libraries(laser_scan_matcher_nodelet laser_scan_matcher)
-
-#Create node
-add_executable(laser_scan_matcher_node src/laser_scan_matcher_node.cpp)
-target_link_libraries( laser_scan_matcher_node laser_scan_matcher )
-
-#Install library
-install(TARGETS laser_scan_matcher laser_scan_matcher_nodelet
-    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-    RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION})
-
-#Install library includes
-install(DIRECTORY include/laser_scan_matcher/
-    DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION} )
-
-#Install node
-install(TARGETS laser_scan_matcher_node
-    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION} )
-
-#Install nodelet description
-install(FILES laser_scan_matcher_nodelet.xml
-    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION} )
-
-#Install demo files
-install(DIRECTORY demo
-    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION} )
-
-add_rostest(test/run.test)
-add_rostest(test/covariance.test)
+ament_package()

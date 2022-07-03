@@ -35,261 +35,114 @@
  *  on Robotics and Automation (ICRA), 2008
  */
 
-#include <laser_scan_matcher/laser_scan_matcher.h>
-#include <pcl_conversions/pcl_conversions.h>
-#include <boost/assign.hpp>
+#include <ros2_laser_scan_matcher/laser_scan_matcher.h>
+#include <tf2/utils.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+
+#undef min
+#undef max
 
 namespace scan_tools
 {
 
-LaserScanMatcher::LaserScanMatcher(ros::NodeHandle nh, ros::NodeHandle nh_private):
-  nh_(nh),
-  nh_private_(nh_private),
-  initialized_(false),
-  received_imu_(false),
-  received_odom_(false),
-  received_vel_(false)
+void LaserScanMatcher::add_parameter(
+    const std::string & name, const rclcpp::ParameterValue & default_value,
+    const std::string & description, const std::string & additional_constraints,
+    bool read_only)
+  {
+    auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
+
+    descriptor.name = name;
+    descriptor.description = description;
+    descriptor.additional_constraints = additional_constraints;
+    descriptor.read_only = read_only;
+
+    declare_parameter(descriptor.name, default_value, descriptor);
+  }
+
+
+LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(false)
 {
-  ROS_INFO("Starting LaserScanMatcher");
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
+  // Initiate parameters
 
-  // **** init parameters
+   RCLCPP_INFO(get_logger(), "Creating laser_scan_matcher");
+  add_parameter("publish_tf",   rclcpp::ParameterValue(false),
+    "Whether to publish tf transform from 'odom_frame' to 'base_frame'");
 
-  initParams();
+  add_parameter("xy_cov_scale", rclcpp::ParameterValue(xy_cov_scale_),"");
+  add_parameter("xy_cov_offset", rclcpp::ParameterValue(xy_cov_offset_),"");
+  add_parameter("heading_cov_scale", rclcpp::ParameterValue(heading_cov_scale_),"");
+  add_parameter("heading_cov_offset", rclcpp::ParameterValue(heading_cov_offset_),"");
 
-  // **** state variables
+  add_parameter("base_frame", rclcpp::ParameterValue(std::string("base_link")),
+    "Which frame to use for the robot base");
+  add_parameter("odom_frame", rclcpp::ParameterValue(std::string("odom")),
+    "Which frame to use for the odom");
+  add_parameter("kf_dist_linear", rclcpp::ParameterValue(0.10),
+    "When to generate keyframe scan.");
+  add_parameter("kf_dist_angular", rclcpp::ParameterValue(10.0* (M_PI/180.0)),
+    "When to generate keyframe scan.");
 
-  f2b_.setIdentity();
-  f2b_kf_.setIdentity();
-  input_.laser[0] = 0.0;
-  input_.laser[1] = 0.0;
-  input_.laser[2] = 0.0;
 
-  // Initialize output_ vectors as Null for error-checking
-  output_.cov_x_m = 0;
-  output_.dx_dy1_m = 0;
-  output_.dx_dy2_m = 0;
 
-  // **** publishers
+  // CSM parameters - comments copied from algos.h (by Andrea Censi)
+  add_parameter("max_angular_correction_deg", rclcpp::ParameterValue(45.0),
+    "Maximum angular displacement between scansr.");
 
-  if (publish_pose_)
-  {
-    pose_publisher_  = nh_.advertise<geometry_msgs::Pose2D>(
-      "pose2D", 5);
-  }
+  add_parameter("max_linear_correction", rclcpp::ParameterValue(0.5),
+    "Maximum translation between scans (m).");
 
-  if (publish_pose_stamped_)
-  {
-    pose_stamped_publisher_ = nh_.advertise<geometry_msgs::PoseStamped>(
-      "pose_stamped", 5);
-  }
+  add_parameter("max_iterations", rclcpp::ParameterValue(10),
+    "Maximum ICP cycle iterationsr.");
 
-  if (publish_pose_with_covariance_)
-  {
-    pose_with_covariance_publisher_  = nh_.advertise<geometry_msgs::PoseWithCovariance>(
-      "pose_with_covariance", 5);
-  }
+  add_parameter("epsilon_xy", rclcpp::ParameterValue(0.000001),
+   "A threshold for stopping (m).");
 
-  if (publish_pose_with_covariance_stamped_)
-  {
-    pose_with_covariance_stamped_publisher_ = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>(
-      "pose_with_covariance_stamped", 5);
-  }
+  add_parameter("epsilon_theta", rclcpp::ParameterValue(0.000001),
+    "A threshold for stopping (rad).");
 
-  // *** subscribers
+  add_parameter("max_correspondence_dist", rclcpp::ParameterValue(0.3),
+    "Maximum distance for a correspondence to be valid.");
 
-  if (use_cloud_input_)
-  {
-    cloud_subscriber_ = nh_.subscribe(
-      "cloud", 1, &LaserScanMatcher::cloudCallback, this);
-  }
-  else
-  {
-    scan_subscriber_ = nh_.subscribe(
-      "scan", 1, &LaserScanMatcher::scanCallback, this);
-  }
+  add_parameter("sigma", rclcpp::ParameterValue(0.010),
+    "Noise in the scan (m).");
 
-  if (use_imu_)
-  {
-    imu_subscriber_ = nh_.subscribe(
-      "imu/data", 1, &LaserScanMatcher::imuCallback, this);
-  }
-  if (use_odom_)
-  {
-    odom_subscriber_ = nh_.subscribe(
-      "odom", 1, &LaserScanMatcher::odomCallback, this);
-  }
-  if (use_vel_)
-  {
-    if (stamped_vel_)
-      vel_subscriber_ = nh_.subscribe(
-        "vel", 1, &LaserScanMatcher::velStmpCallback, this);
-    else
-      vel_subscriber_ = nh_.subscribe(
-        "vel", 1, &LaserScanMatcher::velCallback, this);
-  }
-}
+  add_parameter("use_corr_tricks", rclcpp::ParameterValue(1),
+    "Use smart tricks for finding correspondences.");
 
-LaserScanMatcher::~LaserScanMatcher()
-{
-  ROS_INFO("Destroying LaserScanMatcher");
-}
+  add_parameter("restart", rclcpp::ParameterValue(0),
+    "Restart if error is over threshold.");
 
-void LaserScanMatcher::initParams()
-{
-  if (!nh_private_.getParam ("base_frame", base_frame_))
-    base_frame_ = "base_link";
-  if (!nh_private_.getParam ("fixed_frame", fixed_frame_))
-    fixed_frame_ = "world";
+  add_parameter("restart_threshold_mean_error", rclcpp::ParameterValue(0.01),
+    "Threshold for restarting.");
 
-  // **** input type - laser scan, or point clouds?
-  // if false, will subscribe to LaserScan msgs on /scan.
-  // if true, will subscribe to PointCloud2 msgs on /cloud
+  add_parameter("restart_dt", rclcpp::ParameterValue(1.0),
+   "Displacement for restarting. (m).");
 
-  if (!nh_private_.getParam ("use_cloud_input", use_cloud_input_))
-    use_cloud_input_= false;
+  add_parameter("restart_dtheta", rclcpp::ParameterValue(0.1),
+    "Displacement for restarting. (rad).");
 
-  if (use_cloud_input_)
-  {
-    if (!nh_private_.getParam ("cloud_range_min", cloud_range_min_))
-      cloud_range_min_ = 0.1;
-    if (!nh_private_.getParam ("cloud_range_max", cloud_range_max_))
-      cloud_range_max_ = 50.0;
-    if (!nh_private_.getParam ("cloud_res", cloud_res_))
-      cloud_res_ = 0.05;
+  add_parameter("clustering_threshold", rclcpp::ParameterValue(0.25),
+    "Max distance for staying in the same clustering.");
 
-    input_.min_reading = cloud_range_min_;
-    input_.max_reading = cloud_range_max_;
-  }
+  add_parameter("orientation_neighbourhood", rclcpp::ParameterValue(20),
+    "Number of neighbour rays used to estimate the orientation.");
 
-  // **** keyframe params: when to generate the keyframe scan
-  // if either is set to 0, reduces to frame-to-frame matching
+  add_parameter("use_point_to_line_distance", rclcpp::ParameterValue(1),
+    "If 0, it's vanilla ICP.");
 
-  if (!nh_private_.getParam ("kf_dist_linear", kf_dist_linear_))
-    kf_dist_linear_ = 0.10;
-  if (!nh_private_.getParam ("kf_dist_angular", kf_dist_angular_))
-    kf_dist_angular_ = 10.0 * (M_PI / 180.0);
+  add_parameter("do_alpha_test", rclcpp::ParameterValue(0),
+   " Discard correspondences based on the angles.");
 
-  kf_dist_linear_sq_ = kf_dist_linear_ * kf_dist_linear_;
+  add_parameter("do_alpha_test_thresholdDeg", rclcpp::ParameterValue(20.0),
+    "Discard correspondences based on the angles - threshold angle, in degrees.");
 
-  // **** What predictions are available to speed up the ICP?
-  // 1) imu - [theta] from imu yaw angle - /imu topic
-  // 2) odom - [x, y, theta] from wheel odometry - /odom topic
-  // 3) vel - [x, y, theta] from velocity predictor - see alpha-beta predictors - /vel topic
-  // If more than one is enabled, priority is imu > odom > vel
+  add_parameter("outliers_maxPerc", rclcpp::ParameterValue(0.9),
+    "Percentage of correspondences to consider: if 0.9, \
+        always discard the top 10% of correspondences with more error");
 
-  if (!nh_private_.getParam ("use_imu", use_imu_))
-    use_imu_ = true;
-  if (!nh_private_.getParam ("use_odom", use_odom_))
-    use_odom_ = true;
-  if (!nh_private_.getParam ("use_vel", use_vel_))
-    use_vel_ = false;
-
-  // **** Are velocity input messages stamped?
-  // if false, will subscribe to Twist msgs on /vel
-  // if true, will subscribe to TwistStamped msgs on /vel
-  if (!nh_private_.getParam ("stamped_vel", stamped_vel_))
-    stamped_vel_ = false;
-
-  // **** How to publish the output?
-  // tf (fixed_frame->base_frame),
-  // pose message (pose of base frame in the fixed frame)
-
-  if (!nh_private_.getParam ("publish_tf", publish_tf_))
-    publish_tf_ = true;
-  if (!nh_private_.getParam ("publish_pose", publish_pose_))
-    publish_pose_ = true;
-  if (!nh_private_.getParam ("publish_pose_stamped", publish_pose_stamped_))
-    publish_pose_stamped_ = false;
-  if (!nh_private_.getParam ("publish_pose_with_covariance", publish_pose_with_covariance_))
-    publish_pose_with_covariance_ = false;
-  if (!nh_private_.getParam ("publish_pose_with_covariance_stamped", publish_pose_with_covariance_stamped_))
-    publish_pose_with_covariance_stamped_ = false;
-
-  if (!nh_private_.getParam("position_covariance", position_covariance_))
-  {
-    position_covariance_.resize(3);
-    std::fill(position_covariance_.begin(), position_covariance_.end(), 1e-9);
-  }
-
-  if (!nh_private_.getParam("orientation_covariance", orientation_covariance_))
-  {
-    orientation_covariance_.resize(3);
-    std::fill(orientation_covariance_.begin(), orientation_covariance_.end(), 1e-9);
-  }
-  // **** CSM parameters - comments copied from algos.h (by Andrea Censi)
-
-  // Maximum angular displacement between scans
-  if (!nh_private_.getParam ("max_angular_correction_deg", input_.max_angular_correction_deg))
-    input_.max_angular_correction_deg = 45.0;
-
-  // Maximum translation between scans (m)
-  if (!nh_private_.getParam ("max_linear_correction", input_.max_linear_correction))
-    input_.max_linear_correction = 0.50;
-
-  // Maximum ICP cycle iterations
-  if (!nh_private_.getParam ("max_iterations", input_.max_iterations))
-    input_.max_iterations = 10;
-
-  // A threshold for stopping (m)
-  if (!nh_private_.getParam ("epsilon_xy", input_.epsilon_xy))
-    input_.epsilon_xy = 0.000001;
-
-  // A threshold for stopping (rad)
-  if (!nh_private_.getParam ("epsilon_theta", input_.epsilon_theta))
-    input_.epsilon_theta = 0.000001;
-
-  // Maximum distance for a correspondence to be valid
-  if (!nh_private_.getParam ("max_correspondence_dist", input_.max_correspondence_dist))
-    input_.max_correspondence_dist = 0.3;
-
-  // Noise in the scan (m)
-  if (!nh_private_.getParam ("sigma", input_.sigma))
-    input_.sigma = 0.010;
-
-  // Use smart tricks for finding correspondences.
-  if (!nh_private_.getParam ("use_corr_tricks", input_.use_corr_tricks))
-    input_.use_corr_tricks = 1;
-
-  // Restart: Restart if error is over threshold
-  if (!nh_private_.getParam ("restart", input_.restart))
-    input_.restart = 0;
-
-  // Restart: Threshold for restarting
-  if (!nh_private_.getParam ("restart_threshold_mean_error", input_.restart_threshold_mean_error))
-    input_.restart_threshold_mean_error = 0.01;
-
-  // Restart: displacement for restarting. (m)
-  if (!nh_private_.getParam ("restart_dt", input_.restart_dt))
-    input_.restart_dt = 1.0;
-
-  // Restart: displacement for restarting. (rad)
-  if (!nh_private_.getParam ("restart_dtheta", input_.restart_dtheta))
-    input_.restart_dtheta = 0.1;
-
-  // Max distance for staying in the same clustering
-  if (!nh_private_.getParam ("clustering_threshold", input_.clustering_threshold))
-    input_.clustering_threshold = 0.25;
-
-  // Number of neighbour rays used to estimate the orientation
-  if (!nh_private_.getParam ("orientation_neighbourhood", input_.orientation_neighbourhood))
-    input_.orientation_neighbourhood = 20;
-
-  // If 0, it's vanilla ICP
-  if (!nh_private_.getParam ("use_point_to_line_distance", input_.use_point_to_line_distance))
-    input_.use_point_to_line_distance = 1;
-
-  // Discard correspondences based on the angles
-  if (!nh_private_.getParam ("do_alpha_test", input_.do_alpha_test))
-    input_.do_alpha_test = 0;
-
-  // Discard correspondences based on the angles - threshold angle, in degrees
-  if (!nh_private_.getParam ("do_alpha_test_thresholdDeg", input_.do_alpha_test_thresholdDeg))
-    input_.do_alpha_test_thresholdDeg = 20.0;
-
-  // Percentage of correspondences to consider: if 0.9,
-  // always discard the top 10% of correspondences with more error
-  if (!nh_private_.getParam ("outliers_maxPerc", input_.outliers_maxPerc))
-    input_.outliers_maxPerc = 0.90;
 
   // Parameters describing a simple adaptive algorithm for discarding.
   //  1) Order the errors.
@@ -299,108 +152,138 @@ void LaserScanMatcher::initParams()
   //     with the value of the error at the chosen percentile.
   //  4) Discard correspondences over the threshold.
   //  This is useful to be conservative; yet remove the biggest errors.
-  if (!nh_private_.getParam ("outliers_adaptive_order", input_.outliers_adaptive_order))
-    input_.outliers_adaptive_order = 0.7;
+  add_parameter("outliers_adaptive_order", rclcpp::ParameterValue(0.7),
+    "");
 
-  if (!nh_private_.getParam ("outliers_adaptive_mult", input_.outliers_adaptive_mult))
-    input_.outliers_adaptive_mult = 2.0;
+  add_parameter("outliers_adaptive_mult", rclcpp::ParameterValue(2.0),
+    "");
 
-  // If you already have a guess of the solution, you can compute the polar angle
-  // of the points of one scan in the new position. If the polar angle is not a monotone
-  // function of the readings index, it means that the surface is not visible in the
+  // If you already have a guess of the solution, you can compute the polar
+  // angle
+  // of the points of one scan in the new position. If the polar angle is not a
+  // monotone
+  // function of the readings index, it means that the surface is not visible in
+  // the
   // next position. If it is not visible, then we don't use it for matching.
-  if (!nh_private_.getParam ("do_visibility_test", input_.do_visibility_test))
-    input_.do_visibility_test = 0;
+  add_parameter("do_visibility_test", rclcpp::ParameterValue(0),
+    "");
 
-  // no two points in laser_sens can have the same corr.
-  if (!nh_private_.getParam ("outliers_remove_doubles", input_.outliers_remove_doubles))
-    input_.outliers_remove_doubles = 1;
+  add_parameter("outliers_remove_doubles", rclcpp::ParameterValue(1),
+    "No two points in laser_sens can have the same corr.");
 
-  // If 1, computes the covariance of ICP using the method http://purl.org/censi/2006/icpcov
-  if (!nh_private_.getParam ("do_compute_covariance", input_.do_compute_covariance))
-    input_.do_compute_covariance = 0;
+  add_parameter("do_compute_covariance", rclcpp::ParameterValue(true),
+    "If 1, computes the covariance of ICP using the method http://purl.org/censi/2006/icpcov");
 
-  // Checks that find_correspondences_tricks gives the right answer
-  if (!nh_private_.getParam ("debug_verify_tricks", input_.debug_verify_tricks))
-    input_.debug_verify_tricks = 0;
+  add_parameter("debug_verify_tricks", rclcpp::ParameterValue(0),
+    " Checks that find_correspondences_tricks gives the right answer.");
 
-  // If 1, the field 'true_alpha' (or 'alpha') in the first scan is used to compute the
-  // incidence beta, and the factor (1/cos^2(beta)) used to weight the correspondence.");
-  if (!nh_private_.getParam ("use_ml_weights", input_.use_ml_weights))
-    input_.use_ml_weights = 0;
+  add_parameter("use_ml_weights", rclcpp::ParameterValue(0),
+    "If 1, the field 'true_alpha' (or 'alpha') in the first scan is used to \
+         compute the incidence beta, and the factor (1/cos^2(beta)) used to weight the \
+         correspondence.");
 
-  // If 1, the field 'readings_sigma' in the second scan is used to weight the
-  // correspondence by 1/sigma^2
-  if (!nh_private_.getParam ("use_sigma_weights", input_.use_sigma_weights))
-    input_.use_sigma_weights = 0;
-}
+  add_parameter("use_sigma_weights", rclcpp::ParameterValue(0),
+    " If 1, the field 'readings_sigma' in the second scan is used to weight the correspondence by 1/sigma^2");
 
-void LaserScanMatcher::imuCallback(const sensor_msgs::Imu::ConstPtr& imu_msg)
-{
-  boost::mutex::scoped_lock(mutex_);
-  latest_imu_msg_ = *imu_msg;
-  if (!received_imu_)
-  {
-    last_used_imu_msg_ = *imu_msg;
-    received_imu_ = true;
+  base_frame_ = get_parameter("base_frame").as_string();
+  odom_frame_ = get_parameter("odom_frame").as_string();
+  kf_dist_linear_  = get_parameter("kf_dist_linear").as_double();
+  kf_dist_angular_ = get_parameter("kf_dist_angular").as_double();
+  publish_tf_ = get_parameter("publish_tf").as_bool();
+  xy_cov_scale_ = get_parameter("xy_cov_scale").as_double();
+  xy_cov_offset_ = get_parameter("xy_cov_offset").as_double();
+  heading_cov_scale_ = get_parameter("heading_cov_scale").as_double();
+  heading_cov_offset_ = get_parameter("heading_cov_offset").as_double();
+
+  kf_dist_linear_sq_ = kf_dist_linear_ * kf_dist_linear_;
+
+  input_.max_angular_correction_deg = get_parameter("max_angular_correction_deg").as_double();
+  input_.max_linear_correction = get_parameter("max_linear_correction").as_double();
+  input_.max_iterations = get_parameter("max_iterations").as_int();
+  input_.epsilon_xy = get_parameter("epsilon_xy").as_double();
+  input_.epsilon_theta = get_parameter("epsilon_theta").as_double();
+  input_.max_correspondence_dist = get_parameter("max_correspondence_dist").as_double();
+  input_.sigma = get_parameter("sigma").as_double();
+  input_.use_corr_tricks = get_parameter("use_corr_tricks").as_int();
+  input_.restart = get_parameter("restart").as_int();
+  input_.restart_threshold_mean_error = get_parameter("restart_threshold_mean_error").as_double();
+  input_.restart_dt = get_parameter("restart_dt").as_double();
+  input_.restart_dtheta = get_parameter("restart_dtheta").as_double();
+  input_.clustering_threshold = get_parameter("clustering_threshold").as_double();
+  input_.orientation_neighbourhood = get_parameter("orientation_neighbourhood").as_int();
+  input_.use_point_to_line_distance = get_parameter("use_point_to_line_distance").as_int();
+  input_.do_alpha_test = get_parameter("do_alpha_test").as_int();
+  input_.do_alpha_test_thresholdDeg = get_parameter("do_alpha_test_thresholdDeg").as_double();
+  input_.outliers_maxPerc = get_parameter("outliers_maxPerc").as_double();
+  input_.outliers_adaptive_order = get_parameter("outliers_adaptive_order").as_double();
+  input_.outliers_adaptive_mult = get_parameter("outliers_adaptive_mult").as_double();
+  input_.do_visibility_test = get_parameter("do_visibility_test").as_int();
+  input_.outliers_remove_doubles = get_parameter("outliers_remove_doubles").as_int();
+  input_.do_compute_covariance = get_parameter("do_compute_covariance").as_bool();
+  input_.debug_verify_tricks = get_parameter("debug_verify_tricks").as_int();
+  input_.use_ml_weights = get_parameter("use_ml_weights").as_int();
+  input_.use_sigma_weights = get_parameter("use_sigma_weights").as_int();
+
+  RCLCPP_WARN(get_logger(),"do_compute_covariance: %d", input_.do_compute_covariance);
+
+  // State variables
+
+  base_in_fixed_.setIdentity();
+  prev_base_in_fixed_.setIdentity();
+  keyframe_base_in_fixed_.setIdentity();
+  prev_laser_in_tf_odom_.setIdentity();
+  input_.laser[0] = 0.0;
+  input_.laser[1] = 0.0;
+  input_.laser[2] = 0.0;
+
+  // Initialize output_ vectors as Null for error-checking
+  output_.cov_x_m = 0;
+  output_.dx_dy1_m = 0;
+  output_.dx_dy2_m = 0;
+
+  // Subscribers
+  scan_sub_ = create_subscription<sensor_msgs::msg::LaserScan>("scan", rclcpp::SensorDataQoS(), std::bind(&LaserScanMatcher::scanCallback, this, std::placeholders::_1));
+  tf_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
+  // Publishers
+  if (publish_tf_) {
+    tfB_ = std::make_shared<tf2_ros::TransformBroadcaster>(*this);
   }
+
+  odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("laser_odom", rclcpp::SystemDefaultsQoS());
+  pose_pub_ = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("laser_pose", rclcpp::SystemDefaultsQoS());
+  keyframe_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("keyframe", rclcpp::SystemDefaultsQoS());
 }
 
-void LaserScanMatcher::odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg)
+LaserScanMatcher::~LaserScanMatcher()
 {
-  boost::mutex::scoped_lock(mutex_);
-  latest_odom_msg_ = *odom_msg;
-  if (!received_odom_)
+
+}
+
+void LaserScanMatcher::createCache (const sensor_msgs::msg::LaserScan::SharedPtr& scan_msg)
+{
+  a_cos_.clear();
+  a_sin_.clear();
+
+  for (unsigned int i = 0; i < scan_msg->ranges.size(); ++i)
   {
-    last_used_odom_msg_ = *odom_msg;
-    received_odom_ = true;
-  }
-}
-
-void LaserScanMatcher::velCallback(const geometry_msgs::Twist::ConstPtr& twist_msg)
-{
-  boost::mutex::scoped_lock(mutex_);
-  latest_vel_msg_ = *twist_msg;
-
-  received_vel_ = true;
-}
-
-void LaserScanMatcher::velStmpCallback(const geometry_msgs::TwistStamped::ConstPtr& twist_msg)
-{
-  boost::mutex::scoped_lock(mutex_);
-  latest_vel_msg_ = twist_msg->twist;
-
-  received_vel_ = true;
-}
-
-void LaserScanMatcher::cloudCallback (const PointCloudT::ConstPtr& cloud)
-{
-  // **** if first scan, cache the tf from base to the scanner
-
-  std_msgs::Header cloud_header = pcl_conversions::fromPCL(cloud->header);
-
-  if (!initialized_)
-  {
-    // cache the static tf from base to laser
-    if (!getBaseToLaserTf(cloud_header.frame_id))
-    {
-      ROS_WARN("Skipping scan");
-      return;
-    }
-
-    PointCloudToLDP(cloud, prev_ldp_scan_);
-    last_icp_time_ = cloud_header.stamp;
-    initialized_ = true;
+    double angle = scan_msg->angle_min + i * scan_msg->angle_increment;
+    a_cos_.push_back(cos(angle));
+    a_sin_.push_back(sin(angle));
   }
 
-  LDP curr_ldp_scan;
-  PointCloudToLDP(cloud, curr_ldp_scan);
-  processScan(curr_ldp_scan, cloud_header.stamp);
+  input_.min_reading = scan_msg->range_min;
+  input_.max_reading = scan_msg->range_max;
 }
 
-void LaserScanMatcher::scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
+
+void LaserScanMatcher::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg)
 {
-  // **** if first scan, cache the tf from base to the scanner
+  RCLCPP_INFO(get_logger(),"Scan callback:");
+  tf2::Transform laser_in_tf_odom;
+  if (!getLaserInTfOdom(scan_msg->header.frame_id, scan_msg->header.stamp, laser_in_tf_odom)) {
+    return;
+  }
 
   if (!initialized_)
   {
@@ -409,69 +292,100 @@ void LaserScanMatcher::scanCallback (const sensor_msgs::LaserScan::ConstPtr& sca
     // cache the static tf from base to laser
     if (!getBaseToLaserTf(scan_msg->header.frame_id))
     {
-      ROS_WARN("Skipping scan");
+      RCLCPP_WARN(get_logger(),"  skipping scan");
       return;
     }
 
-    laserScanToLDP(scan_msg, prev_ldp_scan_);
-    last_icp_time_ = scan_msg->header.stamp;
+    laserScanToLDP(scan_msg, keyframe_laser_data_);
+    prev_stamp_ = scan_msg->header.stamp;
+    prev_laser_in_tf_odom_ = laser_in_tf_odom;
     initialized_ = true;
   }
 
-  LDP curr_ldp_scan;
-  laserScanToLDP(scan_msg, curr_ldp_scan);
-  processScan(curr_ldp_scan, scan_msg->header.stamp);
+  RCLCPP_INFO(get_logger(),"  laser in tf odom: %lf, %lf", laser_in_tf_odom.getOrigin().getX(), laser_in_tf_odom.getOrigin().getY());
+  RCLCPP_INFO(get_logger(),"  prev laser in tf odom: %lf, %lf", prev_laser_in_tf_odom_.getOrigin().getX(), prev_laser_in_tf_odom_.getOrigin().getY());
+
+  auto pred_laser_offset = prev_laser_in_tf_odom_.inverse() * laser_in_tf_odom;
+
+  if (processScan(scan_msg, pred_laser_offset)) {
+    prev_laser_in_tf_odom_ = laser_in_tf_odom;
+  }
+  else {
+    // TODO(malban): need to reset at some point?
+    RCLCPP_WARN(get_logger(), "  failed to process scan");
+  }
 }
 
-void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
+bool LaserScanMatcher::getBaseToLaserTf(const std::string& frame_id)
 {
-  ros::WallTime start = ros::WallTime::now();
+  try {
+      auto msg = tf_buffer_->lookupTransform(base_frame_, frame_id, rclcpp::Time(0), rclcpp::Duration(10,0));
+      tf2::fromMsg(msg.transform, base_from_laser_);
+      laser_from_base_ = base_from_laser_.inverse();
+  }
+  catch (tf2::TransformException ex) {
+    RCLCPP_INFO(get_logger(),"Could not get initial transform of base to laser frame, %s", ex.what());
+    return false;
+  }
 
+  return true;
+}
+
+bool LaserScanMatcher::getLaserInTfOdom(const std::string& frame_id, const rclcpp::Time& stamp, tf2::Transform& transform)
+{
+  try {
+    //                                                                          50 milliseconds
+    auto msg = tf_buffer_->lookupTransform(odom_frame_, frame_id, stamp, rclcpp::Duration(0, 50000000));
+    tf2::fromMsg(msg.transform, transform);
+  }
+  catch (tf2::TransformException ex)
+  {
+    RCLCPP_WARN(get_logger(),"Could not get transform laser to fixed frame, %s", ex.what());
+    return false;
+  }
+
+  return true;
+}
+
+bool LaserScanMatcher::processScan(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg, const tf2::Transform& pred_laser_offset)
+{
   // CSM is used in the following way:
   // The scans are always in the laser frame
-  // The reference scan (prevLDPcan_) has a pose of [0, 0, 0]
-  // The new scan (currLDPScan) has a pose equal to the movement
+  // The reference scan (keyframe_laser_data_) has a pose of [0, 0, 0]
+  // The new scan (curr_laser_data) has a pose equal to the movement
   // of the laser in the laser frame since the last scan
   // The computed correction is then propagated using the tf machinery
 
-  prev_ldp_scan_->odometry[0] = 0.0;
-  prev_ldp_scan_->odometry[1] = 0.0;
-  prev_ldp_scan_->odometry[2] = 0.0;
+  LDP curr_laser_data;
+  laserScanToLDP(scan_msg, curr_laser_data);
 
-  prev_ldp_scan_->estimate[0] = 0.0;
-  prev_ldp_scan_->estimate[1] = 0.0;
-  prev_ldp_scan_->estimate[2] = 0.0;
+  keyframe_laser_data_->odometry[0] = 0.0;
+  keyframe_laser_data_->odometry[1] = 0.0;
+  keyframe_laser_data_->odometry[2] = 0.0;
 
-  prev_ldp_scan_->true_pose[0] = 0.0;
-  prev_ldp_scan_->true_pose[1] = 0.0;
-  prev_ldp_scan_->true_pose[2] = 0.0;
+  keyframe_laser_data_->estimate[0] = 0.0;
+  keyframe_laser_data_->estimate[1] = 0.0;
+  keyframe_laser_data_->estimate[2] = 0.0;
 
-  input_.laser_ref  = prev_ldp_scan_;
-  input_.laser_sens = curr_ldp_scan;
+  keyframe_laser_data_->true_pose[0] = 0.0;
+  keyframe_laser_data_->true_pose[1] = 0.0;
+  keyframe_laser_data_->true_pose[2] = 0.0;
 
-  // **** estimated change since last scan
+  input_.laser_ref = keyframe_laser_data_;
+  input_.laser_sens = curr_laser_data;
 
-  double dt = (time - last_icp_time_).toSec();
-  double pr_ch_x, pr_ch_y, pr_ch_a;
-  getPrediction(pr_ch_x, pr_ch_y, pr_ch_a, dt);
+  // elapsed time between consecutive scans
+  double dt = (rclcpp::Time(scan_msg->header.stamp) - prev_stamp_).nanoseconds() / 1e+9;
 
-  // the predicted change of the laser's position, in the fixed frame
+  // predicted new pose of the base from prev_pose
+  tf2::Transform pred_base_in_fixed =  prev_base_in_fixed_ * base_from_laser_ * pred_laser_offset;
 
-  tf::Transform pr_ch;
-  createTfFromXYTheta(pr_ch_x, pr_ch_y, pr_ch_a, pr_ch);
-
-  // account for the change since the last kf, in the fixed frame
-
-  pr_ch = pr_ch * (f2b_ * f2b_kf_.inverse());
-
-  // the predicted change of the laser's position, in the laser frame
-
-  tf::Transform pr_ch_l;
-  pr_ch_l = laser_to_base_ * f2b_.inverse() * pr_ch * f2b_ * base_to_laser_ ;
+  // predicted change of the laser's position from the keyframe in the laser frame
+  tf2::Transform pr_ch_l = laser_from_base_ * (keyframe_base_in_fixed_.inverse()) * pred_base_in_fixed;
 
   input_.first_guess[0] = pr_ch_l.getOrigin().getX();
   input_.first_guess[1] = pr_ch_l.getOrigin().getY();
-  input_.first_guess[2] = tf::getYaw(pr_ch_l.getRotation());
+  input_.first_guess[2] = tf2::getYaw(pr_ch_l.getRotation());
 
   // If they are non-Null, free covariance gsl matrices to avoid leaking memory
   if (output_.cov_x_m)
@@ -490,244 +404,180 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
     output_.dx_dy2_m = 0;
   }
 
-  // *** scan match - using point to line icp from CSM
+  // Scan matching - using point to line icp from CSM
 
   sm_icp(&input_, &output_);
-  tf::Transform corr_ch;
+  tf2::Transform corr_ch;
+
+  RCLCPP_INFO(get_logger(),"  pred prev laser offset: %lf, %lf", pred_laser_offset.getOrigin().getX(), pred_laser_offset.getOrigin().getY());
+  RCLCPP_INFO(get_logger(),"  pred base: %lf, %lf", pred_base_in_fixed.getOrigin().getX(), pred_base_in_fixed.getOrigin().getY());
+  RCLCPP_INFO(get_logger(),"  pred keyframe laser offset: %lf, %lf", pr_ch_l.getOrigin().getX(), pr_ch_l.getOrigin().getY());
 
   if (output_.valid)
   {
-
     // the correction of the laser's position, in the laser frame
-    tf::Transform corr_ch_l;
+    tf2::Transform corr_ch_l;
     createTfFromXYTheta(output_.x[0], output_.x[1], output_.x[2], corr_ch_l);
 
     // the correction of the base's position, in the base frame
-    corr_ch = base_to_laser_ * corr_ch_l * laser_to_base_;
+    corr_ch = base_from_laser_ * corr_ch_l * laser_from_base_;
 
     // update the pose in the world frame
-    f2b_ = f2b_kf_ * corr_ch;
+    base_in_fixed_ = keyframe_base_in_fixed_ * corr_ch;
 
-    // **** publish
-
-    if (publish_pose_)
-    {
-      // unstamped Pose2D message
-      geometry_msgs::Pose2D::Ptr pose_msg;
-      pose_msg = boost::make_shared<geometry_msgs::Pose2D>();
-      pose_msg->x = f2b_.getOrigin().getX();
-      pose_msg->y = f2b_.getOrigin().getY();
-      pose_msg->theta = tf::getYaw(f2b_.getRotation());
-      pose_publisher_.publish(pose_msg);
-    }
-    if (publish_pose_stamped_)
-    {
-      // stamped Pose message
-      geometry_msgs::PoseStamped::Ptr pose_stamped_msg;
-      pose_stamped_msg = boost::make_shared<geometry_msgs::PoseStamped>();
-
-      pose_stamped_msg->header.stamp    = time;
-      pose_stamped_msg->header.frame_id = fixed_frame_;
-
-      tf::poseTFToMsg(f2b_, pose_stamped_msg->pose);
-
-      pose_stamped_publisher_.publish(pose_stamped_msg);
-    }
-    if (publish_pose_with_covariance_)
-    {
-      // unstamped PoseWithCovariance message
-      geometry_msgs::PoseWithCovariance::Ptr pose_with_covariance_msg;
-      pose_with_covariance_msg = boost::make_shared<geometry_msgs::PoseWithCovariance>();
-      tf::poseTFToMsg(f2b_, pose_with_covariance_msg->pose);
-
-      if (input_.do_compute_covariance)
-      {
-        pose_with_covariance_msg->covariance = boost::assign::list_of
-          (gsl_matrix_get(output_.cov_x_m, 0, 0)) (0)  (0)  (0)  (0)  (0)
-          (0)  (gsl_matrix_get(output_.cov_x_m, 0, 1)) (0)  (0)  (0)  (0)
-          (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
-          (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
-          (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
-          (0)  (0)  (0)  (0)  (0)  (gsl_matrix_get(output_.cov_x_m, 0, 2));
-      }
-      else
-      {
-        pose_with_covariance_msg->covariance = boost::assign::list_of
-          (static_cast<double>(position_covariance_[0])) (0)  (0)  (0)  (0)  (0)
-          (0)  (static_cast<double>(position_covariance_[1])) (0)  (0)  (0)  (0)
-          (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
-          (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
-          (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
-          (0)  (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[2]));
-      }
-
-      pose_with_covariance_publisher_.publish(pose_with_covariance_msg);
-    }
-    if (publish_pose_with_covariance_stamped_)
-    {
-      // stamped Pose message
-      geometry_msgs::PoseWithCovarianceStamped::Ptr pose_with_covariance_stamped_msg;
-      pose_with_covariance_stamped_msg = boost::make_shared<geometry_msgs::PoseWithCovarianceStamped>();
-
-      pose_with_covariance_stamped_msg->header.stamp    = time;
-      pose_with_covariance_stamped_msg->header.frame_id = fixed_frame_;
-
-      tf::poseTFToMsg(f2b_, pose_with_covariance_stamped_msg->pose.pose);
-
-      if (input_.do_compute_covariance)
-      {
-        pose_with_covariance_stamped_msg->pose.covariance = boost::assign::list_of
-          (gsl_matrix_get(output_.cov_x_m, 0, 0)) (0)  (0)  (0)  (0)  (0)
-          (0)  (gsl_matrix_get(output_.cov_x_m, 0, 1)) (0)  (0)  (0)  (0)
-          (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
-          (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
-          (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
-          (0)  (0)  (0)  (0)  (0)  (gsl_matrix_get(output_.cov_x_m, 0, 2));
-      }
-      else
-      {
-        pose_with_covariance_stamped_msg->pose.covariance = boost::assign::list_of
-          (static_cast<double>(position_covariance_[0])) (0)  (0)  (0)  (0)  (0)
-          (0)  (static_cast<double>(position_covariance_[1])) (0)  (0)  (0)  (0)
-          (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
-          (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
-          (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
-          (0)  (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[2]));
-      }
-
-      pose_with_covariance_stamped_publisher_.publish(pose_with_covariance_stamped_msg);
-    }
-
-    if (publish_tf_)
-    {
-      tf::StampedTransform transform_msg (f2b_, time, fixed_frame_, base_frame_);
-      tf_broadcaster_.sendTransform (transform_msg);
-    }
+    RCLCPP_INFO(get_logger(),"  meas keyframe laser offset: %lf, %lf", corr_ch.getOrigin().getX(), corr_ch.getOrigin().getY());
+    RCLCPP_INFO(get_logger(),"  meas base: %lf, %lf", base_in_fixed_.getOrigin().getX(), base_in_fixed_.getOrigin().getY());
   }
   else
   {
     corr_ch.setIdentity();
-    ROS_WARN("Error in scan matching");
+    RCLCPP_WARN(get_logger(),"Error in scan matching");
+
+    // TODO create new keyframe and try again
+
+    return false;
+  }
+
+  if (odom_pub_->get_subscription_count() > 0)
+  {
+    nav_msgs::msg::Odometry odom_msg;
+
+    odom_msg.header.stamp = scan_msg->header.stamp;;
+    odom_msg.header.frame_id = odom_frame_;
+    odom_msg.child_frame_id = base_frame_;
+    tf2::toMsg(base_in_fixed_, odom_msg.pose.pose);
+
+    // Get pose difference in base frame and calculate velocities
+    auto pose_difference = prev_base_in_fixed_.inverse() * base_in_fixed_;
+    odom_msg.twist.twist.linear.x = pose_difference.getOrigin().getX()/dt;
+    odom_msg.twist.twist.linear.y = pose_difference.getOrigin().getY()/dt;
+    odom_msg.twist.twist.angular.z = tf2::getYaw(pose_difference.getRotation())/dt;
+
+    if (input_.do_compute_covariance)
+    {
+      odom_msg.pose.covariance[0] = gsl_matrix_get(output_.cov_x_m, 0, 0);
+      odom_msg.pose.covariance[1] = gsl_matrix_get(output_.cov_x_m, 0, 1);
+      odom_msg.pose.covariance[6] = gsl_matrix_get(output_.cov_x_m, 1, 0);
+      odom_msg.pose.covariance[7] = gsl_matrix_get(output_.cov_x_m, 1, 1);
+      odom_msg.pose.covariance[35] = gsl_matrix_get(output_.cov_x_m, 2, 2);
+    }
+
+    odom_msg.pose.covariance[0] *= xy_cov_scale_;
+    odom_msg.pose.covariance[0] += xy_cov_offset_;
+    odom_msg.pose.covariance[1] *= xy_cov_scale_;
+    odom_msg.pose.covariance[6] *= xy_cov_scale_;
+    odom_msg.pose.covariance[7] *= xy_cov_scale_;
+    odom_msg.pose.covariance[7] += xy_cov_offset_;
+    odom_msg.pose.covariance[35] *= heading_cov_scale_;
+    odom_msg.pose.covariance[35] += heading_cov_offset_;
+
+    odom_msg.twist.covariance = odom_msg.pose.covariance;
+
+    odom_pub_->publish(odom_msg);
+  }
+
+  if (pose_pub_->get_subscription_count() > 0) {
+    // stamped Pose message
+    geometry_msgs::msg::PoseWithCovarianceStamped pose_msg;
+
+    pose_msg.header.stamp = scan_msg->header.stamp;
+    pose_msg.header.frame_id = odom_frame_;
+    tf2::toMsg(base_in_fixed_, pose_msg.pose.pose);
+
+    if (input_.do_compute_covariance)
+    {
+      pose_msg.pose.covariance[0] = gsl_matrix_get(output_.cov_x_m, 0, 0);
+      pose_msg.pose.covariance[1] = gsl_matrix_get(output_.cov_x_m, 0, 1);
+      pose_msg.pose.covariance[6] = gsl_matrix_get(output_.cov_x_m, 1, 0);
+      pose_msg.pose.covariance[7] = gsl_matrix_get(output_.cov_x_m, 1, 1);
+      pose_msg.pose.covariance[35] = gsl_matrix_get(output_.cov_x_m, 2, 2);
+    }
+
+    pose_msg.pose.covariance[0] *= xy_cov_scale_;
+    pose_msg.pose.covariance[0] += xy_cov_offset_;
+    pose_msg.pose.covariance[1] *= xy_cov_scale_;
+    pose_msg.pose.covariance[6] *= xy_cov_scale_;
+    pose_msg.pose.covariance[7] *= xy_cov_scale_;
+    pose_msg.pose.covariance[7] += xy_cov_offset_;
+    pose_msg.pose.covariance[35] *= heading_cov_scale_;
+    pose_msg.pose.covariance[35] += heading_cov_offset_;
+
+    pose_pub_->publish(pose_msg);
+  }
+
+  if (publish_tf_)
+  {
+    geometry_msgs::msg::TransformStamped tf_msg;
+    tf_msg.transform = tf2::toMsg(base_in_fixed_);
+
+    tf_msg.header.stamp = scan_msg->header.stamp;;
+    tf_msg.header.frame_id = odom_frame_;
+    tf_msg.child_frame_id = base_frame_;
+    tfB_->sendTransform (tf_msg);
   }
 
   // **** swap old and new
-
   if (newKeyframeNeeded(corr_ch))
   {
+    RCLCPP_INFO(get_logger(),"Creating new keyframe ...");
     // generate a keyframe
-    ld_free(prev_ldp_scan_);
-    prev_ldp_scan_ = curr_ldp_scan;
-    f2b_kf_ = f2b_;
+    ld_free(keyframe_laser_data_);
+    keyframe_laser_data_ = curr_laser_data;
+    keyframe_base_in_fixed_ = base_in_fixed_;
+
+    if (keyframe_pub_->get_subscription_count() > 0) {
+      // TODO publish keyframe in odom frame
+
+      sensor_msgs::msg::PointCloud2 laser_cloud;
+      laser_projector_.projectLaser(*scan_msg, laser_cloud);
+
+      // transform from laser to fixed frame
+      auto transform = keyframe_base_in_fixed_ * base_from_laser_;
+      geometry_msgs::msg::TransformStamped transform_msg;
+      transform_msg.transform = tf2::toMsg(transform);
+      sensor_msgs::msg::PointCloud2 fixed_cloud;
+      tf2::doTransform (laser_cloud, fixed_cloud, transform_msg);
+      fixed_cloud.header.frame_id = odom_frame_;
+      fixed_cloud.header.stamp = scan_msg->header.stamp;
+      keyframe_pub_->publish(fixed_cloud);
+    }
   }
   else
   {
-    ld_free(curr_ldp_scan);
+    ld_free(curr_laser_data);
+
   }
 
-  last_icp_time_ = time;
-
-  // **** statistics
-
-  double dur = (ros::WallTime::now() - start).toSec() * 1e3;
-  ROS_DEBUG("Scan matcher total duration: %.1f ms", dur);
+  prev_base_in_fixed_ = base_in_fixed_;
+  prev_stamp_ = scan_msg->header.stamp;
+  return true;
 }
 
-bool LaserScanMatcher::newKeyframeNeeded(const tf::Transform& d)
+bool LaserScanMatcher::newKeyframeNeeded(const tf2::Transform& d)
 {
-  if (fabs(tf::getYaw(d.getRotation())) > kf_dist_angular_) return true;
+  if (fabs(tf2::getYaw(d.getRotation())) > kf_dist_angular_)
+    return true;
 
   double x = d.getOrigin().getX();
   double y = d.getOrigin().getY();
-  if (x*x + y*y > kf_dist_linear_sq_) return true;
+  if (x * x + y * y > kf_dist_linear_sq_)
+    return true;
 
   return false;
 }
 
-void LaserScanMatcher::PointCloudToLDP(const PointCloudT::ConstPtr& cloud,
-                                             LDP& ldp)
+void LaserScanMatcher::laserScanToLDP(const sensor_msgs::msg::LaserScan::SharedPtr& scan, LDP& ldp)
 {
-  double max_d2 = cloud_res_ * cloud_res_;
-
-  PointCloudT cloud_f;
-
-  cloud_f.points.push_back(cloud->points[0]);
-
-  for (unsigned int i = 1; i < cloud->points.size(); ++i)
-  {
-    const PointT& pa = cloud_f.points[cloud_f.points.size() - 1];
-    const PointT& pb = cloud->points[i];
-
-    double dx = pa.x - pb.x;
-    double dy = pa.y - pb.y;
-    double d2 = dx*dx + dy*dy;
-
-    if (d2 > max_d2)
-    {
-      cloud_f.points.push_back(pb);
-    }
-  }
-
-  unsigned int n = cloud_f.points.size();
-
+  unsigned int n = scan->ranges.size();
   ldp = ld_alloc_new(n);
 
   for (unsigned int i = 0; i < n; i++)
   {
-    // calculate position in laser frame
-    if (is_nan(cloud_f.points[i].x) || is_nan(cloud_f.points[i].y))
+    // Calculate position in laser frame
+    double r = scan->ranges[i];
+    if ((r > scan->range_min) && (r < scan->range_max))
     {
-      ROS_WARN("Laser Scan Matcher: Cloud input contains NaN values. \
-                Please use a filtered cloud input.");
-    }
-    else
-    {
-      double r = sqrt(cloud_f.points[i].x * cloud_f.points[i].x +
-                      cloud_f.points[i].y * cloud_f.points[i].y);
-
-      if (r > cloud_range_min_ && r < cloud_range_max_)
-      {
-        ldp->valid[i] = 1;
-        ldp->readings[i] = r;
-      }
-      else
-      {
-        ldp->valid[i] = 0;
-        ldp->readings[i] = -1;  // for invalid range
-      }
-    }
-
-    ldp->theta[i] = atan2(cloud_f.points[i].y, cloud_f.points[i].x);
-    ldp->cluster[i]  = -1;
-  }
-
-  ldp->min_theta = ldp->theta[0];
-  ldp->max_theta = ldp->theta[n-1];
-
-  ldp->odometry[0] = 0.0;
-  ldp->odometry[1] = 0.0;
-  ldp->odometry[2] = 0.0;
-
-  ldp->true_pose[0] = 0.0;
-  ldp->true_pose[1] = 0.0;
-  ldp->true_pose[2] = 0.0;
-}
-
-void LaserScanMatcher::laserScanToLDP(const sensor_msgs::LaserScan::ConstPtr& scan_msg,
-                                            LDP& ldp)
-{
-  unsigned int n = scan_msg->ranges.size();
-  ldp = ld_alloc_new(n);
-
-  for (unsigned int i = 0; i < n; i++)
-  {
-    // calculate position in laser frame
-
-    double r = scan_msg->ranges[i];
-
-    if (r > scan_msg->range_min && r < scan_msg->range_max)
-    {
-      // fill in laser scan data
-
+      // Fill in laser scan data
       ldp->valid[i] = 1;
       ldp->readings[i] = r;
     }
@@ -736,14 +586,12 @@ void LaserScanMatcher::laserScanToLDP(const sensor_msgs::LaserScan::ConstPtr& sc
       ldp->valid[i] = 0;
       ldp->readings[i] = -1;  // for invalid range
     }
-
-    ldp->theta[i]    = scan_msg->angle_min + i * scan_msg->angle_increment;
-
-    ldp->cluster[i]  = -1;
+    ldp->theta[i] = scan->angle_min + i * scan->angle_increment;
+    ldp->cluster[i] = -1;
   }
 
   ldp->min_theta = ldp->theta[0];
-  ldp->max_theta = ldp->theta[n-1];
+  ldp->max_theta = ldp->theta[n - 1];
 
   ldp->odometry[0] = 0.0;
   ldp->odometry[1] = 0.0;
@@ -754,106 +602,23 @@ void LaserScanMatcher::laserScanToLDP(const sensor_msgs::LaserScan::ConstPtr& sc
   ldp->true_pose[2] = 0.0;
 }
 
-void LaserScanMatcher::createCache (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
+
+void LaserScanMatcher::createTfFromXYTheta(double x, double y, double theta, tf2::Transform& t)
 {
-  a_cos_.clear();
-  a_sin_.clear();
-
-  for (unsigned int i = 0; i < scan_msg->ranges.size(); ++i)
-  {
-    double angle = scan_msg->angle_min + i * scan_msg->angle_increment;
-    a_cos_.push_back(cos(angle));
-    a_sin_.push_back(sin(angle));
-  }
-
-  input_.min_reading = scan_msg->range_min;
-  input_.max_reading = scan_msg->range_max;
-}
-
-bool LaserScanMatcher::getBaseToLaserTf (const std::string& frame_id)
-{
-  ros::Time t = ros::Time::now();
-
-  tf::StampedTransform base_to_laser_tf;
-  try
-  {
-    tf_listener_.waitForTransform(
-      base_frame_, frame_id, t, ros::Duration(1.0));
-    tf_listener_.lookupTransform (
-      base_frame_, frame_id, t, base_to_laser_tf);
-  }
-  catch (tf::TransformException ex)
-  {
-    ROS_WARN("Could not get initial transform from base to laser frame, %s", ex.what());
-    return false;
-  }
-  base_to_laser_ = base_to_laser_tf;
-  laser_to_base_ = base_to_laser_.inverse();
-
-  return true;
-}
-
-// returns the predicted change in pose (in fixed frame)
-// since the last time we did icp
-void LaserScanMatcher::getPrediction(double& pr_ch_x, double& pr_ch_y,
-                                     double& pr_ch_a, double dt)
-{
-  boost::mutex::scoped_lock(mutex_);
-
-  // **** base case - no input available, use zero-motion model
-  pr_ch_x = 0.0;
-  pr_ch_y = 0.0;
-  pr_ch_a = 0.0;
-
-  // **** use velocity (for example from ab-filter)
-  if (use_vel_)
-  {
-    pr_ch_x = dt * latest_vel_msg_.linear.x;
-    pr_ch_y = dt * latest_vel_msg_.linear.y;
-    pr_ch_a = dt * latest_vel_msg_.angular.z;
-
-    if      (pr_ch_a >= M_PI) pr_ch_a -= 2.0 * M_PI;
-    else if (pr_ch_a < -M_PI) pr_ch_a += 2.0 * M_PI;
-  }
-
-  // **** use wheel odometry
-  if (use_odom_ && received_odom_)
-  {
-    pr_ch_x = latest_odom_msg_.pose.pose.position.x -
-              last_used_odom_msg_.pose.pose.position.x;
-
-    pr_ch_y = latest_odom_msg_.pose.pose.position.y -
-              last_used_odom_msg_.pose.pose.position.y;
-
-    pr_ch_a = tf::getYaw(latest_odom_msg_.pose.pose.orientation) -
-              tf::getYaw(last_used_odom_msg_.pose.pose.orientation);
-
-    if      (pr_ch_a >= M_PI) pr_ch_a -= 2.0 * M_PI;
-    else if (pr_ch_a < -M_PI) pr_ch_a += 2.0 * M_PI;
-
-    last_used_odom_msg_ = latest_odom_msg_;
-  }
-
-  // **** use imu
-  if (use_imu_ && received_imu_)
-  {
-    pr_ch_a = tf::getYaw(latest_imu_msg_.orientation) -
-              tf::getYaw(last_used_imu_msg_.orientation);
-
-    if      (pr_ch_a >= M_PI) pr_ch_a -= 2.0 * M_PI;
-    else if (pr_ch_a < -M_PI) pr_ch_a += 2.0 * M_PI;
-
-    last_used_imu_msg_ = latest_imu_msg_;
-  }
-}
-
-void LaserScanMatcher::createTfFromXYTheta(
-  double x, double y, double theta, tf::Transform& t)
-{
-  t.setOrigin(tf::Vector3(x, y, 0.0));
-  tf::Quaternion q;
+  t.setOrigin(tf2::Vector3(x, y, 0.0));
+  tf2::Quaternion q;
   q.setRPY(0.0, 0.0, theta);
   t.setRotation(q);
 }
 
-} // namespace scan_tools
+}  // namespace scan_tools
+
+int main(int argc, char ** argv)
+{
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<scan_tools::LaserScanMatcher>();
+  rclcpp::spin(node->get_node_base_interface());
+  rclcpp::shutdown();
+
+  return 0;
+}

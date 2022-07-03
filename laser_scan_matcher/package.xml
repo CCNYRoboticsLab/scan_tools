@@ -1,4 +1,6 @@
-<package>
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
   <name>laser_scan_matcher</name>
   <version>0.3.2</version>
   <description>
@@ -17,32 +19,24 @@
   <license>BSD</license>
   <license>LGPLv3</license>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <build_depend>csm</build_depend>
-  <build_depend>geometry_msgs</build_depend>
-  <build_depend>libpcl-all-dev</build_depend>
-  <build_depend>nav_msgs</build_depend>
-  <build_depend>nodelet</build_depend>
-  <build_depend>pcl_conversions</build_depend>
-  <build_depend>pcl_ros</build_depend>
-  <build_depend>roscpp</build_depend>
-  <build_depend>sensor_msgs</build_depend>
-  <build_depend>tf</build_depend>
+  <depend>csm</depend>
+  <depend>eigen</depend>
+  <depend>geometry_msgs</depend>
+  <depend>laser_geometry</depend>
+  <depend>nav_msgs</depend>
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_sensor_msgs</depend>
 
-  <run_depend>csm</run_depend>
-  <run_depend>geometry_msgs</run_depend>
-  <run_depend>libpcl-all</run_depend>
-  <run_depend>nav_msgs</run_depend>
-  <run_depend>nodelet</run_depend>
-  <run_depend>pcl_ros</run_depend>
-  <run_depend>pcl_conversions</run_depend>
-  <run_depend>roscpp</run_depend>
-  <run_depend>sensor_msgs</run_depend>
-  <run_depend>tf</run_depend>
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
 
   <export>
-    <nodelet plugin="${prefix}/laser_scan_matcher_nodelet.xml" />
+    <build_type>ament_cmake</build_type>
   </export>
-
 </package>
