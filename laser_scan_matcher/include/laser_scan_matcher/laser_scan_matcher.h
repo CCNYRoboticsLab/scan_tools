@@ -35,87 +35,71 @@
  *  on Robotics and Automation (ICRA), 2008
  */
 
-#ifndef LASER_SCAN_MATCHER_LASER_SCAN_MATCHER_H
-#define LASER_SCAN_MATCHER_LASER_SCAN_MATCHER_H
+#pragma once
 
-#include <ros/ros.h>
-#include <sensor_msgs/Imu.h>
-#include <sensor_msgs/LaserScan.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/Pose2D.h>
-#include <geometry_msgs/PoseWithCovarianceStamped.h>
-#include <geometry_msgs/PoseWithCovariance.h>
-#include <geometry_msgs/TwistStamped.h>
-#include <nav_msgs/Odometry.h>
-#include <tf/transform_datatypes.h>
-#include <tf/transform_listener.h>
-#include <tf/transform_broadcaster.h>
-#include <pcl/point_types.h>
-#include <pcl/point_cloud.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl_ros/point_cloud.h>
+#include <string>
+#include <vector>
 
-#include <csm/csm_all.h>  // csm defines min and max, but Eigen complains
+#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
+#include <laser_scan_matcher/param_handler.h>
+#include <nav_msgs/msg/odometry.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+#include <sensor_msgs/msg/laser_scan.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
+
+#include <csm/csm.h>
 #undef min
 #undef max
 
-namespace scan_tools
-{
+namespace scan_tools {
 
-class LaserScanMatcher
+class LaserScanMatcher: public rclcpp::Node
 {
   public:
-
-    LaserScanMatcher(ros::NodeHandle nh, ros::NodeHandle nh_private);
-    ~LaserScanMatcher();
+    LaserScanMatcher();
+    ~LaserScanMatcher() = default;
 
   private:
-
-    typedef pcl::PointXYZ           PointT;
-    typedef pcl::PointCloud<PointT> PointCloudT;
-
     // **** ros
 
-    ros::NodeHandle nh_;
-    ros::NodeHandle nh_private_;
+    rclcpp::TimerBase::SharedPtr init_timer_;
 
-    ros::Subscriber scan_subscriber_;
-    ros::Subscriber cloud_subscriber_;
-    ros::Subscriber odom_subscriber_;
-    ros::Subscriber imu_subscriber_;
-    ros::Subscriber vel_subscriber_;
+    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_subscriber_;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscriber_;
+    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscriber_;
+    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr vel_subscriber_;
+    rclcpp::Subscription<geometry_msgs::msg::TwistStamped>::SharedPtr vel_stamped_subscriber_;
 
-    tf::TransformListener    tf_listener_;
-    tf::TransformBroadcaster tf_broadcaster_;
+    std::shared_ptr<tf2_ros::TransformListener> tf_;
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
-    tf::Transform base_from_laser_; // static, cached
-    tf::Transform laser_from_base_; // static, cached
+    tf2::Transform base_from_laser_; // static, cached
+    tf2::Transform laser_from_base_; // static, cached
 
-    ros::Publisher  pose_publisher_;
-    ros::Publisher  pose_stamped_publisher_;
-    ros::Publisher  pose_with_covariance_publisher_;
-    ros::Publisher  pose_with_covariance_stamped_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_publisher_;
 
-    // **** parameters
+    // **** coordinate parameters
+    std::string base_frame_ = "base_link";
+    std::string odom_frame_ = "odom";
+    bool publish_tf_ = false;
+    double tf_timeout_ = 0.1;
 
-    std::string base_frame_;
-    std::string fixed_frame_;
-    double cloud_range_min_;
-    double cloud_range_max_;
-    double cloud_res_;
-    bool publish_tf_;
-    bool publish_pose_;
-    bool publish_pose_with_covariance_;
-    bool publish_pose_stamped_;
-    bool publish_pose_with_covariance_stamped_;
-    std::vector<double> position_covariance_;
-    std::vector<double> orientation_covariance_;
+    // **** keyframe parameters
+    double min_travel_distance_ = 0.5;
+    double min_travel_heading_ = 30.0;
 
-    bool use_cloud_input_;
-
-    double kf_dist_linear_;
-    double kf_dist_linear_sq_;
-    double kf_dist_angular_;
+    // **** covariance parameters
+    double xy_cov_scale_ = 1.0;
+    double xy_cov_offset_ = 0.0;
+    double heading_cov_scale_ = 1.0;
+    double heading_cov_offset_ = 0.0;
 
     // **** What predictions are available to speed up the ICP?
     // 1) imu - [theta] from imu yaw angle - /imu topic
@@ -123,61 +107,50 @@ class LaserScanMatcher
     // 3) tf - [x, y, theta] from /tf topic
     // 3) velocity [vx, vy, vtheta], usually from ab-filter - /vel.
     // If more than one is enabled, priority is tf > imu > odom > velocity
-
-    bool use_imu_;
-    bool use_odom_;
-    bool use_tf_;
-    double tf_timeout_;
-    bool use_vel_;
-    bool stamped_vel_;
+    bool use_imu_ = true;
+    bool use_odom_ = true;
+    bool use_tf_ = false;
+    bool use_vel_ = false;
+    bool stamped_vel_ = false;
 
     // **** state variables
+    bool initialized_ = false;
+    ParamHandler params_;
 
-    boost::mutex mutex_;
+    tf2::Transform last_base_in_fixed_;      // pose of the base of the last scan in fixed frame
+    tf2::Transform keyframe_base_in_fixed_;  // pose of the base of last keyframe scan in fixed frame
 
-    bool initialized_;
-    bool received_imu_;
-    bool received_odom_;
-    bool received_vel_;
+    rclcpp::Time last_icp_time_;
 
-    tf::Transform last_base_in_fixed_;     // pose of the base of the last scan in fixed frame
-    tf::Transform keyframe_base_in_fixed_; // pose of the base of last keyframe scan in fixed frame
+    sensor_msgs::msg::Imu::SharedPtr latest_imu_msg_;
+    nav_msgs::msg::Odometry::SharedPtr latest_odom_msg_;
+    geometry_msgs::msg::Twist::SharedPtr latest_vel_msg_;
 
-    ros::Time last_icp_time_;
-
-    sensor_msgs::Imu latest_imu_msg_;
-    tf::Quaternion last_used_imu_orientation_;
-    nav_msgs::Odometry latest_odom_msg_;
-    tf::Transform last_used_odom_pose_;
-
-    geometry_msgs::Twist latest_vel_msg_;
+    tf2::Quaternion last_used_imu_orientation_;
+    tf2::Transform last_used_odom_pose_;
 
     std::vector<double> a_cos_;
     std::vector<double> a_sin_;
 
     sm_params input_;
     sm_result output_;
-    LDP prev_ldp_scan_;
+    LDP keyframe_laser_data_;
 
-    // **** methods
+      // **** methods
 
     void initParams();
-    void processScan(LDP& curr_ldp_scan, const ros::Time& time);
+    void processScan(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg);
 
-    void laserScanToLDP(const sensor_msgs::LaserScan::ConstPtr& scan_msg,
-                              LDP& ldp);
-    void PointCloudToLDP(const PointCloudT::ConstPtr& cloud,
-                               LDP& ldp);
+    void laserScanToLDP(const sensor_msgs::msg::LaserScan::SharedPtr& scan, LDP& ldp);
 
-    void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg);
-    void cloudCallback (const PointCloudT::ConstPtr& cloud);
+    void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg);
 
-    void odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg);
-    void imuCallback (const sensor_msgs::Imu::ConstPtr& imu_msg);
-    void velCallback (const geometry_msgs::Twist::ConstPtr& twist_msg);
-    void velStmpCallback(const geometry_msgs::TwistStamped::ConstPtr& twist_msg);
+    void odomCallback(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
+    void imuCallback(const sensor_msgs::msg::Imu::SharedPtr imu_msg);
+    void velCallback(const geometry_msgs::msg::Twist::SharedPtr twist_msg);
+    void velStmpCallback(const geometry_msgs::msg::TwistStamped::SharedPtr twist_msg);
 
-    void createCache (const sensor_msgs::LaserScan::ConstPtr& scan_msg);
+    void createCache(const sensor_msgs::msg::LaserScan::SharedPtr& scan_msg);
 
     /**
      * Cache the static transform between the base and laser.
@@ -186,17 +159,21 @@ class LaserScanMatcher
      *
      * @returns True if the transform was found, false otherwise.
      */
-    bool getBaseLaserTransform(const std::string& frame_id);
+    bool getBaseToLaserTf (const std::string& frame_id);
 
-    bool newKeyframeNeeded(const tf::Transform& d);
+    bool getTfOffset(
+      const std::string& frame_id,
+      const rclcpp::Time& target_stamp,
+      const rclcpp::Time& source_stamp,
+      tf2::Transform& transform);
 
-    tf::Transform getPrediction(const ros::Time& stamp);
+    bool newKeyframeNeeded(const tf2::Transform& d);
 
-    void createTfFromXYTheta(double x, double y, double theta, tf::Transform& t);
+    tf2::Transform getPrediction(const rclcpp::Time& stamp);
 
-    Eigen::Matrix2f getLaserRotation(const tf::Transform& odom_pose) const;
+    void createTfFromXYTheta(double x, double y, double theta, tf2::Transform& t);
+
+    Eigen::Matrix2f getLaserRotation(const tf2::Transform& odom_pose);
 };
 
-} // namespace scan_tools
-
-#endif // LASER_SCAN_MATCHER_LASER_SCAN_MATCHER_H
+}  // namespace scan_tools
