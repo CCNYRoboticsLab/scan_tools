@@ -37,6 +37,7 @@
 
 #pragma once
 
+#include <string>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <laser_geometry/laser_geometry.hpp>
 #include <nav_msgs/msg/odometry.hpp>
@@ -55,7 +56,7 @@ class LaserScanMatcher: public rclcpp::Node
 {
 public:
   LaserScanMatcher();
-  ~LaserScanMatcher();
+  ~LaserScanMatcher() = default;
 
 private:
   // Ros handle
@@ -63,7 +64,7 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
 
   std::shared_ptr<tf2_ros::TransformListener> tf_;
-  std::shared_ptr<tf2_ros::TransformBroadcaster> tfB_;
+  std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
 
@@ -72,19 +73,15 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr keyframe_pub_;
 
   // Coordinate parameters
-  std::string map_frame_;
-  std::string base_frame_;
-  std::string odom_frame_;
-  std::string laser_frame_;
-  std::string odom_topic_;
+  std::string base_frame_ = "base_link";
+  std::string odom_frame_ = "odom";
 
   // Keyframe parameters
-  double kf_dist_linear_;
-  double kf_dist_linear_sq_;
-  double kf_dist_angular_;
+  double min_travel_distance_ = 0.5;
+  double min_travel_heading_ = 30.0;
 
-  bool initialized_;
-  bool publish_tf_;
+  bool initialized_ = false;
+  bool publish_tf_ = false;
 
   double xy_cov_scale_ = 1.0;
   double xy_cov_offset_ = 0.0;
@@ -105,13 +102,86 @@ private:
 
   laser_geometry::LaserProjection laser_projector_;
 
-  // Grid map parameters
-  double resolution_;
-
   std::vector<double> a_cos_;
   std::vector<double> a_sin_;
 
   rclcpp::Time prev_stamp_;
+
+  OnSetParametersCallbackHandle::SharedPtr params_callback_handle_;
+
+  std::unordered_map<std::string, bool*> bool_params_;
+  std::unordered_map<std::string, double*> double_params_;
+  std::unordered_map<std::string, int*> int_params_;
+  std::unordered_map<std::string, std::string*> string_params_;
+
+  template <class T>
+  T param(const std::string& name, const T& default_val, const std::string& description) {
+    auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
+    descriptor.description = description;
+    descriptor.read_only = true;
+    declare_parameter(name, rclcpp::ParameterValue(default_val), descriptor);
+    return get_parameter(name).get_value<T>();
+  }
+
+  template <class T>
+  void register_param(T* param, const std::string& name, const T& default_val, const std::string& description) {
+    auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
+    descriptor.description = description;
+    descriptor.read_only = false;
+    declare_parameter(name, rclcpp::ParameterValue(default_val), descriptor);
+    auto p = get_parameter(name);
+    *param = p.get_value<T>();
+
+    if (p.get_type() == rclcpp::ParameterType::PARAMETER_BOOL) {
+      bool_params_[name] = static_cast<bool*>(static_cast<void*>(param));
+    }
+    else if (p.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+      double_params_[name] = static_cast<double*>(static_cast<void*>(param));
+    }
+    else if (p.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
+      int_params_[name] = static_cast<int*>(static_cast<void*>(param));
+    }
+    else {
+      RCLCPP_ERROR(get_logger(), "Unsupported dynamic parameter type: %s for parameter: %s", p.get_type_name().c_str(), name.c_str());
+    }
+  }
+
+  void register_param(int* param, const std::string& name, bool default_val, const std::string& description) {
+    auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
+    descriptor.description = description;
+    descriptor.read_only = false;
+    declare_parameter(name, rclcpp::ParameterValue(default_val), descriptor);
+    *param = get_parameter(name).as_bool();
+    int_params_[name] = param;
+  }
+
+  void register_param(int* param, const std::string& name, int default_val, const std::string& description, int min, int max, bool reconfig = false) {
+    auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
+    descriptor.description = description;
+    descriptor.read_only = !reconfig;
+    descriptor.integer_range.resize(1);
+    descriptor.integer_range[0].from_value = min;
+    descriptor.integer_range[0].to_value = max;
+    descriptor.integer_range[0].step = 0;
+    declare_parameter(name, default_val, descriptor);
+    *param = get_parameter(name).as_int();
+    int_params_[name] = param;
+  }
+
+  void register_param(double* param, const std::string& name, double default_val, const std::string& description, double min, double max, bool reconfig = false) {
+    auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
+    descriptor.description = description;
+    descriptor.read_only = !reconfig;
+    descriptor.floating_point_range.resize(1);
+    descriptor.floating_point_range[0].from_value = min;
+    descriptor.floating_point_range[0].to_value = max;
+    descriptor.floating_point_range[0].step = 0;
+    declare_parameter(name, default_val, descriptor);
+    *param = get_parameter(name).as_double();
+    double_params_[name] = param;
+  }
+
+  rcl_interfaces::msg::SetParametersResult parametersCallback(const std::vector<rclcpp::Parameter> &parameters);
 
   bool getBaseToLaserTf (const std::string& frame_id);
   bool getLaserInTfOdom(const std::string& frame_id, const rclcpp::Time& stamp, tf2::Transform& transform);
@@ -123,11 +193,7 @@ private:
 
   bool newKeyframeNeeded(const tf2::Transform& d);
 
-  void add_parameter(
-    const std::string & name, const rclcpp::ParameterValue & default_value,
-    const std::string & description = "", const std::string & additional_constraints = "",
-    bool read_only = false);
-  void createCache (const sensor_msgs::msg::LaserScan::SharedPtr& scan_msg);
+  void createCache(const sensor_msgs::msg::LaserScan::SharedPtr& scan_msg);
 
 
 };  // LaserScanMatcher
