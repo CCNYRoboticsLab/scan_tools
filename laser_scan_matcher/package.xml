@@ -20,6 +20,7 @@
   <license>LGPLv3</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>pkg-config</buildtool_depend>
 
   <depend>csm</depend>
   <depend>eigen</depend>

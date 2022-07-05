@@ -1,9 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(ros2_laser_scan_matcher)
+project(laser_scan_matcher)
 
 find_package(ament_cmake REQUIRED)
-find_package(csm REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(laser_geometry REQUIRED)
@@ -15,19 +14,29 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_sensor_msgs REQUIRED)
 
+# Find csm project
+find_package(PkgConfig)
+pkg_check_modules(csm REQUIRED csm)
+
+message("csm_INCLUDE_DIRS: ${csm_INCLUDE_DIRS}")
+
 include_directories(
   include
+  ${csm_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
   )
 
-add_executable(laser_scan_matcher src/laser_scan_matcher.cpp)
+link_directories(${csm_LIBRARY_DIRS})
 
-target_include_directories(laser_scan_matcher
+add_executable(${PROJECT_NAME} src/laser_scan_matcher.cpp)
+target_link_libraries(${PROJECT_NAME} ${csm_LIBRARIES})
+
+target_include_directories(${PROJECT_NAME}
   PRIVATE
   "include"
 )
 
-ament_target_dependencies(laser_scan_matcher
+ament_target_dependencies(${PROJECT_NAME}
   csm
   Eigen3
   geometry_msgs
@@ -41,6 +50,6 @@ ament_target_dependencies(laser_scan_matcher
   tf2_sensor_msgs
 )
 
-install(TARGETS laser_scan_matcher DESTINATION lib/${PROJECT_NAME})
+install(TARGETS ${PROJECT_NAME} DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
