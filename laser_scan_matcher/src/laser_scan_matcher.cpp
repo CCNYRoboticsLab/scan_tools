@@ -205,9 +205,6 @@ void LaserScanMatcher::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr
     initialized_ = true;
   }
 
-  RCLCPP_INFO(get_logger(),"  laser in tf odom: %lf, %lf", laser_in_tf_odom.getOrigin().getX(), laser_in_tf_odom.getOrigin().getY());
-  RCLCPP_INFO(get_logger(),"  prev laser in tf odom: %lf, %lf", prev_laser_in_tf_odom_.getOrigin().getX(), prev_laser_in_tf_odom_.getOrigin().getY());
-
   auto pred_laser_offset = prev_laser_in_tf_odom_.inverse() * laser_in_tf_odom;
 
   if (processScan(scan_msg, pred_laser_offset)) {
@@ -255,7 +252,7 @@ bool LaserScanMatcher::processScan(
   const sensor_msgs::msg::LaserScan::SharedPtr scan_msg,
   const tf2::Transform& pred_laser_offset)
 {
-  RCLCPP_INFO(get_logger(),"Processing scan ...");
+  RCLCPP_DEBUG(get_logger(),"Processing scan ...");
 
   // Canonical Scan Matcher (CSM) is used in the following way:
   //  - The scans are always in the laser frame.
@@ -307,12 +304,12 @@ bool LaserScanMatcher::processScan(
   sm_icp(&input_, &output_);
   tf2::Transform corr_ch;
 
-  RCLCPP_INFO(get_logger(),"  keyframe: %lf, %lf", keyframe_base_in_fixed_.getOrigin().getX(), keyframe_base_in_fixed_.getOrigin().getY());
-  RCLCPP_INFO(get_logger(),"  prev: %lf, %lf", prev_base_in_fixed_.getOrigin().getX(), prev_base_in_fixed_.getOrigin().getY());
-  RCLCPP_INFO(get_logger(),"  pred prev laser offset: %lf, %lf", pred_laser_offset.getOrigin().getX(), pred_laser_offset.getOrigin().getY());
-  RCLCPP_INFO(get_logger(),"  pred prev base offset: %lf, %lf", pred_base_offset.getOrigin().getX(), pred_base_offset.getOrigin().getY());
-  RCLCPP_INFO(get_logger(),"  pred base: %lf, %lf", pred_base_in_fixed.getOrigin().getX(), pred_base_in_fixed.getOrigin().getY());
-  RCLCPP_INFO(get_logger(),"  pred keyframe laser offset: %lf, %lf", pr_ch_l.getOrigin().getX(), pr_ch_l.getOrigin().getY());
+  RCLCPP_DEBUG(get_logger(),"  keyframe: %lf, %lf", keyframe_base_in_fixed_.getOrigin().getX(), keyframe_base_in_fixed_.getOrigin().getY());
+  RCLCPP_DEBUG(get_logger(),"  prev: %lf, %lf", prev_base_in_fixed_.getOrigin().getX(), prev_base_in_fixed_.getOrigin().getY());
+  RCLCPP_DEBUG(get_logger(),"  pred prev laser offset: %lf, %lf", pred_laser_offset.getOrigin().getX(), pred_laser_offset.getOrigin().getY());
+  RCLCPP_DEBUG(get_logger(),"  pred prev base offset: %lf, %lf", pred_base_offset.getOrigin().getX(), pred_base_offset.getOrigin().getY());
+  RCLCPP_DEBUG(get_logger(),"  pred base: %lf, %lf", pred_base_in_fixed.getOrigin().getX(), pred_base_in_fixed.getOrigin().getY());
+  RCLCPP_DEBUG(get_logger(),"  pred keyframe laser offset: %lf, %lf", pr_ch_l.getOrigin().getX(), pr_ch_l.getOrigin().getY());
 
 
   if (output_.valid) {
@@ -326,9 +323,9 @@ bool LaserScanMatcher::processScan(
     // update the pose in the world frame
     base_in_fixed_ = keyframe_base_in_fixed_ * corr_ch;
 
-    RCLCPP_INFO(get_logger(),"  meas keyframe laser offset: %lf, %lf", corr_ch_l.getOrigin().getX(), corr_ch_l.getOrigin().getY());
-    RCLCPP_INFO(get_logger(),"  meas keyframe base offset: %lf, %lf", corr_ch.getOrigin().getX(), corr_ch.getOrigin().getY());
-    RCLCPP_INFO(get_logger(),"  meas base: %lf, %lf", base_in_fixed_.getOrigin().getX(), base_in_fixed_.getOrigin().getY());
+    RCLCPP_DEBUG(get_logger(),"  meas keyframe laser offset: %lf, %lf", corr_ch_l.getOrigin().getX(), corr_ch_l.getOrigin().getY());
+    RCLCPP_DEBUG(get_logger(),"  meas keyframe base offset: %lf, %lf", corr_ch.getOrigin().getX(), corr_ch.getOrigin().getY());
+    RCLCPP_DEBUG(get_logger(),"  meas base: %lf, %lf", base_in_fixed_.getOrigin().getX(), base_in_fixed_.getOrigin().getY());
   }
   else {
     corr_ch.setIdentity();
