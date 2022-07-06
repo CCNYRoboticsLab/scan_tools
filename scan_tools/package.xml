@@ -1,4 +1,6 @@
-<package>
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
   <name>scan_tools</name>
   <version>0.3.2</version>
 
@@ -15,13 +17,13 @@
 
   <url>http://ros.org/wiki/scan_tools</url>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <run_depend>laser_scan_matcher</run_depend>
-  <run_depend>scan_to_cloud_converter</run_depend>
+  <exec_depend>laser_scan_matcher</exec_depend>
+  <exec_depend>scan_to_cloud_converter</exec_depend>
 
   <export>
-    <metapackage/>
+    <build_type>ament_cmake</build_type>
   </export>
 
 </package>
