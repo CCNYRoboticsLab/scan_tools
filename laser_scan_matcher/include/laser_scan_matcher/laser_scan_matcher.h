@@ -155,10 +155,10 @@ private:
     int_params_[name] = param;
   }
 
-  void register_param(int* param, const std::string& name, int default_val, const std::string& description, int min, int max, bool reconfig = false) {
+  void register_param(int* param, const std::string& name, int default_val, const std::string& description, int min, int max) {
     auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
     descriptor.description = description;
-    descriptor.read_only = !reconfig;
+    descriptor.read_only = false;
     descriptor.integer_range.resize(1);
     descriptor.integer_range[0].from_value = min;
     descriptor.integer_range[0].to_value = max;
@@ -168,10 +168,10 @@ private:
     int_params_[name] = param;
   }
 
-  void register_param(double* param, const std::string& name, double default_val, const std::string& description, double min, double max, bool reconfig = false) {
+  void register_param(double* param, const std::string& name, double default_val, const std::string& description, double min, double max) {
     auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
     descriptor.description = description;
-    descriptor.read_only = !reconfig;
+    descriptor.read_only = false;
     descriptor.floating_point_range.resize(1);
     descriptor.floating_point_range[0].from_value = min;
     descriptor.floating_point_range[0].to_value = max;

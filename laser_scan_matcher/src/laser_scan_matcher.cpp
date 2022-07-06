@@ -50,9 +50,9 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher"), initi
   // static parameters
   base_frame_ = param("base_frame", std::string("base_link"), "Which frame to use for the robot base");
   odom_frame_ = param("odom_frame", std::string("odom"), "Which frame to track odometry in");
+  publish_tf_,  param("publish_tf", true, "Whether to publish tf transform from 'odom_frame' to 'base_frame'");
 
   // dynamic parameters
-  register_param(&publish_tf_, "publish_tf", true, "Whether to publish tf transform from 'odom_frame' to 'base_frame'");
   register_param(&xy_cov_scale_, "xy_cov_scale", 1.0, "Scaling to apply to xy position covariance", 0.0, 1e8);
   register_param(&xy_cov_offset_, "xy_cov_offset", 0.0, "Offset to apply to xy position covariance", 0.0, 10.0);
   register_param(&heading_cov_scale_, "heading_cov_scale", 1.0, "Scaling to apply to heading covariance", 0.0, 1e8);
