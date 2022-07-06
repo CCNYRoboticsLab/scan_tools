@@ -27,62 +27,32 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "scan_to_cloud_converter/scan_to_cloud_converter.h"
-
-#include <pcl_conversions/pcl_conversions.h>
+#include <scan_to_cloud_converter/scan_to_cloud_converter.h>
 
 namespace scan_tools {
 
-ScanToCloudConverter::ScanToCloudConverter(ros::NodeHandle nh, ros::NodeHandle nh_private):
-  nh_(nh),
-  nh_private_(nh_private)
-{
-  ROS_INFO("Starting ScanToCloudConverter");
+ScanToCloudConverter::ScanToCloudConverter() : rclcpp::Node("scan_to_cloud_converter") {
+  cloud_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("cloud", rclcpp::SystemDefaultsQoS());
 
-  invalid_point_.x = std::numeric_limits<float>::quiet_NaN();
-  invalid_point_.y = std::numeric_limits<float>::quiet_NaN();
-  invalid_point_.z = std::numeric_limits<float>::quiet_NaN();
-
-  cloud_publisher_ = nh_.advertise<PointCloudT>(
-    "cloud", 1); 
-  scan_subscriber_ = nh_.subscribe(
-    "scan", 1, &ScanToCloudConverter::scanCallback, this);
+  scan_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
+    "scan", rclcpp::SensorDataQoS(), std::bind(&ScanToCloudConverter::scanCallback, this, std::placeholders::_1));
 }
 
-ScanToCloudConverter::~ScanToCloudConverter()
-{
-  ROS_INFO("Destroying ScanToCloudConverter");
-}
-
-void ScanToCloudConverter::scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan_msg)
-{
-  PointCloudT::Ptr cloud_msg =
-    boost::shared_ptr<PointCloudT>(new PointCloudT());
-
-  cloud_msg->points.resize(scan_msg->ranges.size());
-
-  for (unsigned int i = 0; i < scan_msg->ranges.size(); ++i)
-  {
-    PointT& p = cloud_msg->points[i];
-    float range = scan_msg->ranges[i];
-    if (range > scan_msg->range_min && range < scan_msg->range_max)
-    {
-      float angle = scan_msg->angle_min + i*scan_msg->angle_increment;
-
-      p.x = range * cos(angle);
-      p.y = range * sin(angle);
-      p.z = 0.0;
-    }
-    else
-      p = invalid_point_;
-  }
-
-  cloud_msg->width = scan_msg->ranges.size();
-  cloud_msg->height = 1;
-  cloud_msg->is_dense = false; //contains nans
-  pcl_conversions::toPCL(scan_msg->header, cloud_msg->header);
-
-  cloud_publisher_.publish(cloud_msg);
+void ScanToCloudConverter::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg) {
+  sensor_msgs::msg::PointCloud2 laser_cloud;
+  laser_projector_.projectLaser(*scan_msg, laser_cloud);
+  laser_cloud.header = scan_msg->header;
+  cloud_pub_->publish(laser_cloud);
 }
 
 } //namespace scan_tools
+
+
+int main(int argc, char ** argv) {
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<scan_tools::ScanToCloudConverter>();
+  rclcpp::spin(node->get_node_base_interface());
+  rclcpp::shutdown();
+
+  return 0;
+}
