@@ -38,6 +38,8 @@
 #pragma once
 
 #include <string>
+#include <vector>
+
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <laser_geometry/laser_geometry.hpp>
 #include <nav_msgs/msg/odometry.hpp>
@@ -67,7 +69,6 @@ private:
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
-
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr keyframe_pub_;
@@ -82,11 +83,15 @@ private:
 
   bool initialized_ = false;
   bool publish_tf_ = false;
+  bool degeneracy_check_ = false;
 
   double xy_cov_scale_ = 1.0;
   double xy_cov_offset_ = 0.0;
   double heading_cov_scale_ = 1.0;
   double heading_cov_offset_ = 0.0;
+  double degeneracy_cov_ramp_ = 5.0;
+  double degeneracy_cov_scale_ = 1.0;
+  double degeneracy_cov_offset_ = 0.0;
 
   tf2::Transform base_from_laser_;  // static, cached
   tf2::Transform laser_from_base_;
@@ -185,6 +190,7 @@ private:
 
   bool getBaseToLaserTf (const std::string& frame_id);
   bool getLaserInTfOdom(const std::string& frame_id, const rclcpp::Time& stamp, tf2::Transform& transform);
+  Eigen::Matrix2f getLaserRotation(const tf2::Transform& odom_pose);
 
   void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg);
   bool processScan(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg, const tf2::Transform& pred_laser_offset);
@@ -192,9 +198,11 @@ private:
   void createTfFromXYTheta(double x, double y, double theta, tf2::Transform& t);
 
   bool newKeyframeNeeded(const tf2::Transform& d);
+  void publishKeyframe(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg);
 
   void createCache(const sensor_msgs::msg::LaserScan::SharedPtr& scan_msg);
 
+  Eigen::Vector2f checkAxisDegeneracy(const laser_data& scan, float baseline, const std::string& laser_frame, rclcpp::Time stamp);
 
 };  // LaserScanMatcher
 

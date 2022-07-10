@@ -35,6 +35,7 @@
  */
 
 #include <laser_scan_matcher/laser_scan_matcher.h>
+
 #include <tf2/utils.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
@@ -53,10 +54,14 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher"), initi
   publish_tf_,  param("publish_tf", true, "Whether to publish tf transform from 'odom_frame' to 'base_frame'");
 
   // dynamic parameters
+  register_param(&degeneracy_check_, "degeneracy_check", false, "Check for degeneracy of matches along an axis");
+  register_param(&degeneracy_cov_ramp_, "degeneracy_cov_ramp", 5.0, "Power to apply to [0,1] degeneracy metric prior to scaling for covariance.", 1.0, 10.0);
+  register_param(&degeneracy_cov_scale_, "degeneracy_cov_scale", 1.0, "Scaling degeneracy metric to apply to position covariance along degenerate axis", 0.0, 100.0);
+  register_param(&degeneracy_cov_offset_, "degeneracy_cov_offset", 0.0, "Offset to apply to position covariance along degenerate axis", 0.0, 10.0);
   register_param(&xy_cov_scale_, "xy_cov_scale", 1.0, "Scaling to apply to xy position covariance", 0.0, 1e8);
   register_param(&xy_cov_offset_, "xy_cov_offset", 0.0, "Offset to apply to xy position covariance", 0.0, 10.0);
   register_param(&heading_cov_scale_, "heading_cov_scale", 1.0, "Scaling to apply to heading covariance", 0.0, 1e8);
-  register_param(&heading_cov_offset_, "heading_cov_offset", 0.0, "Offset to apply to headingcovariance", 0.0, 10.0);
+  register_param(&heading_cov_offset_, "heading_cov_offset", 0.0, "Offset to apply to heading covariance", 0.0, 10.0);
   register_param(&min_travel_distance_, "min_travel_distance", 0.5, "Distance in meters to trigger a new keyframe", 0.0, 10.0);
   register_param(&min_travel_heading_, "min_travel_heading", 30.0, "Angle in degrees to trigger a new keyframe.", 0.0, 180.0);
 
@@ -214,6 +219,8 @@ void LaserScanMatcher::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr
     // TODO(malban): need to reset at some point?
     RCLCPP_WARN(get_logger(), "  failed to process scan");
   }
+
+  prev_stamp_ = scan_msg->header.stamp;
 }
 
 bool LaserScanMatcher::getBaseToLaserTf(const std::string& frame_id) {
@@ -311,29 +318,75 @@ bool LaserScanMatcher::processScan(
   RCLCPP_DEBUG(get_logger(),"  pred base: %lf, %lf", pred_base_in_fixed.getOrigin().getX(), pred_base_in_fixed.getOrigin().getY());
   RCLCPP_DEBUG(get_logger(),"  pred keyframe laser offset: %lf, %lf", pr_ch_l.getOrigin().getX(), pr_ch_l.getOrigin().getY());
 
-
-  if (output_.valid) {
-    // the correction of the laser's position, in the laser frame
-    tf2::Transform corr_ch_l;
-    createTfFromXYTheta(output_.x[0], output_.x[1], output_.x[2], corr_ch_l);
-
-    // the correction of the base's position, in the base frame
-    corr_ch = base_from_laser_ * corr_ch_l * laser_from_base_;
-
-    // update the pose in the world frame
-    base_in_fixed_ = keyframe_base_in_fixed_ * corr_ch;
-
-    RCLCPP_DEBUG(get_logger(),"  meas keyframe laser offset: %lf, %lf", corr_ch_l.getOrigin().getX(), corr_ch_l.getOrigin().getY());
-    RCLCPP_DEBUG(get_logger(),"  meas keyframe base offset: %lf, %lf", corr_ch.getOrigin().getX(), corr_ch.getOrigin().getY());
-    RCLCPP_DEBUG(get_logger(),"  meas base: %lf, %lf", base_in_fixed_.getOrigin().getX(), base_in_fixed_.getOrigin().getY());
-  }
-  else {
+  if (!output_.valid) {
     corr_ch.setIdentity();
-    RCLCPP_WARN(get_logger(),"Error in scan matching");
+    RCLCPP_WARN(get_logger(),"Error in scan matching. Creating new keyframe ...");
 
-    // TODO create new keyframe and try again
+    // generate a new keyframe
+    ld_free(keyframe_laser_data_);
+    keyframe_laser_data_ = curr_laser_data;
+    keyframe_base_in_fixed_ = prev_laser_in_tf_odom_ * base_from_laser_;
+    base_in_fixed_ = keyframe_base_in_fixed_;
+    prev_base_in_fixed_ = keyframe_base_in_fixed_;
+
+    publishKeyframe(scan_msg);
 
     return false;
+  }
+
+  // the correction of the laser's position, in the laser frame
+  tf2::Transform corr_ch_l;
+  createTfFromXYTheta(output_.x[0], output_.x[1], output_.x[2], corr_ch_l);
+
+  // the correction of the base's position, in the base frame
+  corr_ch = base_from_laser_ * corr_ch_l * laser_from_base_;
+
+  // update the pose in the world frame
+  base_in_fixed_ = keyframe_base_in_fixed_ * corr_ch;
+
+  RCLCPP_DEBUG(get_logger(),"  meas keyframe laser offset: %lf, %lf", corr_ch_l.getOrigin().getX(), corr_ch_l.getOrigin().getY());
+  RCLCPP_DEBUG(get_logger(),"  meas keyframe base offset: %lf, %lf", corr_ch.getOrigin().getX(), corr_ch.getOrigin().getY());
+  RCLCPP_DEBUG(get_logger(),"  meas base: %lf, %lf", base_in_fixed_.getOrigin().getX(), base_in_fixed_.getOrigin().getY());
+
+  // icp covariance
+  Eigen::Matrix2f icp_cov = Eigen::Matrix2f::Zero();
+  float yaw_cov = 0.0;
+  if (input_.do_compute_covariance) {
+    icp_cov(0, 0) = (*output_.cov_x_m)(0, 0);
+    icp_cov(0, 1) = (*output_.cov_x_m)(0, 1);
+    icp_cov(1, 0) = (*output_.cov_x_m)(1, 0);
+    icp_cov(1, 1) = (*output_.cov_x_m)(1, 1);
+
+    // rotate into odom frame
+    auto rotation = getLaserRotation(keyframe_base_in_fixed_);
+    icp_cov = rotation * icp_cov * rotation.transpose();
+
+    yaw_cov = (*output_.cov_x_m)(2, 2);
+  }
+
+  // degeneracy check covariance
+  Eigen::Matrix2f degenerate_cov = Eigen::Matrix2f::Zero();
+  if (degeneracy_check_) {
+    auto degenerate_axis = checkAxisDegeneracy(*curr_laser_data, 0.1, scan_msg->header.frame_id, scan_msg->header.stamp);
+    float degeneracy = degenerate_axis.norm();
+    if (degeneracy == 0) {
+      // error condition, set degenerate covariance for both axes
+      degenerate_cov(0, 0) = degeneracy_cov_scale_ + degeneracy_cov_offset_;
+      degenerate_cov(1, 1) = degeneracy_cov_scale_ + degeneracy_cov_offset_;;
+    }
+    else {
+      // scale the degenerate axis
+      Eigen::Vector2f degenerate_axis_scaled = degenerate_axis * std::pow(degeneracy, degeneracy_cov_ramp_) * degeneracy_cov_scale_;
+      Eigen::Vector2f degenerate_axis_offset = degenerate_axis.normalized() * degeneracy_cov_offset_;
+      degenerate_axis = degenerate_axis_scaled + degenerate_axis_offset;
+
+      // create covariance matrix
+      degenerate_cov = degenerate_axis * degenerate_axis.transpose();
+
+      // rotate into odom frame
+      auto rotation = getLaserRotation(base_in_fixed_);
+      degenerate_cov = rotation * degenerate_cov * rotation.transpose();
+    }
   }
 
   if (odom_pub_->get_subscription_count() > 0) {
@@ -353,22 +406,11 @@ bool LaserScanMatcher::processScan(
     odom_msg.twist.twist.linear.y = pose_difference.getOrigin().getY()/dt;
     odom_msg.twist.twist.angular.z = tf2::getYaw(pose_difference.getRotation())/dt;
 
-    if (input_.do_compute_covariance) {
-      odom_msg.pose.covariance[0] = (*output_.cov_x_m)(0, 0);
-      odom_msg.pose.covariance[1] = (*output_.cov_x_m)(0, 1);
-      odom_msg.pose.covariance[6] = (*output_.cov_x_m)(1, 0);
-      odom_msg.pose.covariance[7] = (*output_.cov_x_m)(1, 1);
-      odom_msg.pose.covariance[35] = (*output_.cov_x_m)(2, 2);
-    }
-
-    odom_msg.pose.covariance[0] *= xy_cov_scale_;
-    odom_msg.pose.covariance[0] += xy_cov_offset_;
-    odom_msg.pose.covariance[1] *= xy_cov_scale_;
-    odom_msg.pose.covariance[6] *= xy_cov_scale_;
-    odom_msg.pose.covariance[7] *= xy_cov_scale_;
-    odom_msg.pose.covariance[7] += xy_cov_offset_;
-    odom_msg.pose.covariance[35] *= heading_cov_scale_;
-    odom_msg.pose.covariance[35] += heading_cov_offset_;
+    odom_msg.pose.covariance[0] = icp_cov(0, 0) * xy_cov_scale_ + xy_cov_offset_ + degenerate_cov(0, 0);
+    odom_msg.pose.covariance[1] = icp_cov(0, 1) * xy_cov_scale_ + degenerate_cov(0, 1);
+    odom_msg.pose.covariance[6] = icp_cov(1, 0) * xy_cov_scale_ + degenerate_cov(1, 0);
+    odom_msg.pose.covariance[7] = icp_cov(1, 1) * xy_cov_scale_ + xy_cov_offset_ + degenerate_cov(1, 1);
+    odom_msg.pose.covariance[35] = yaw_cov * heading_cov_scale_ + heading_cov_offset_;
 
     odom_msg.twist.covariance = odom_msg.pose.covariance;
 
@@ -383,22 +425,11 @@ bool LaserScanMatcher::processScan(
     pose_msg.header.frame_id = odom_frame_;
     tf2::toMsg(base_in_fixed_, pose_msg.pose.pose);
 
-    if (input_.do_compute_covariance) {
-      pose_msg.pose.covariance[0] = (*output_.cov_x_m)(0, 0);
-      pose_msg.pose.covariance[1] = (*output_.cov_x_m)(0, 1);
-      pose_msg.pose.covariance[6] = (*output_.cov_x_m)(1, 0);
-      pose_msg.pose.covariance[7] = (*output_.cov_x_m)(1, 1);
-      pose_msg.pose.covariance[35] = (*output_.cov_x_m)(2, 2);
-    }
-
-    pose_msg.pose.covariance[0] *= xy_cov_scale_;
-    pose_msg.pose.covariance[0] += xy_cov_offset_;
-    pose_msg.pose.covariance[1] *= xy_cov_scale_;
-    pose_msg.pose.covariance[6] *= xy_cov_scale_;
-    pose_msg.pose.covariance[7] *= xy_cov_scale_;
-    pose_msg.pose.covariance[7] += xy_cov_offset_;
-    pose_msg.pose.covariance[35] *= heading_cov_scale_;
-    pose_msg.pose.covariance[35] += heading_cov_offset_;
+    pose_msg.pose.covariance[0] = icp_cov(0, 0) * xy_cov_scale_ + xy_cov_offset_ + degenerate_cov(0, 0);
+    pose_msg.pose.covariance[1] = icp_cov(0, 1) * xy_cov_scale_ + degenerate_cov(0, 1);
+    pose_msg.pose.covariance[6] = icp_cov(1, 0) * xy_cov_scale_ + degenerate_cov(1, 0);
+    pose_msg.pose.covariance[7] = icp_cov(1, 1) * xy_cov_scale_ + xy_cov_offset_ + degenerate_cov(1, 1);
+    pose_msg.pose.covariance[35] = yaw_cov * heading_cov_scale_ + heading_cov_offset_;
 
     pose_pub_->publish(pose_msg);
   }
@@ -420,27 +451,13 @@ bool LaserScanMatcher::processScan(
     keyframe_laser_data_ = curr_laser_data;
     keyframe_base_in_fixed_ = base_in_fixed_;
 
-    if (keyframe_pub_->get_subscription_count() > 0) {
-      sensor_msgs::msg::PointCloud2 laser_cloud;
-      laser_projector_.projectLaser(*scan_msg, laser_cloud);
-
-      // transform from laser to fixed frame
-      auto transform = keyframe_base_in_fixed_ * base_from_laser_;
-      geometry_msgs::msg::TransformStamped transform_msg;
-      transform_msg.transform = tf2::toMsg(transform);
-      sensor_msgs::msg::PointCloud2 fixed_cloud;
-      tf2::doTransform (laser_cloud, fixed_cloud, transform_msg);
-      fixed_cloud.header.frame_id = odom_frame_;
-      fixed_cloud.header.stamp = scan_msg->header.stamp;
-      keyframe_pub_->publish(fixed_cloud);
-    }
+    publishKeyframe(scan_msg);
   }
   else {
     ld_free(curr_laser_data);
   }
 
   prev_base_in_fixed_ = base_in_fixed_;
-  prev_stamp_ = scan_msg->header.stamp;
   return true;
 }
 
@@ -456,6 +473,23 @@ bool LaserScanMatcher::newKeyframeNeeded(const tf2::Transform& d) {
   }
 
   return false;
+}
+
+void LaserScanMatcher::publishKeyframe(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg) {
+  if (keyframe_pub_->get_subscription_count() > 0) {
+    sensor_msgs::msg::PointCloud2 laser_cloud;
+    laser_projector_.projectLaser(*scan_msg, laser_cloud);
+
+    // transform from laser to fixed frame
+    auto transform = keyframe_base_in_fixed_ * base_from_laser_;
+    geometry_msgs::msg::TransformStamped transform_msg;
+    transform_msg.transform = tf2::toMsg(transform);
+    sensor_msgs::msg::PointCloud2 fixed_cloud;
+    tf2::doTransform (laser_cloud, fixed_cloud, transform_msg);
+    fixed_cloud.header.frame_id = odom_frame_;
+    fixed_cloud.header.stamp = scan_msg->header.stamp;
+    keyframe_pub_->publish(fixed_cloud);
+  }
 }
 
 void LaserScanMatcher::laserScanToLDP(const sensor_msgs::msg::LaserScan::SharedPtr& scan, LDP& ldp) {
@@ -495,6 +529,127 @@ void LaserScanMatcher::createTfFromXYTheta(double x, double y, double theta, tf2
   tf2::Quaternion q;
   q.setRPY(0.0, 0.0, theta);
   t.setRotation(q);
+}
+
+Eigen::Vector2f LaserScanMatcher::checkAxisDegeneracy(const laser_data& scan, float baseline, const std::string& laser_frame, rclcpp::Time stamp) {
+
+  if (!scan.corr) {
+    RCLCPP_WARN(get_logger(), "No scan correspondences!");
+    return {0, 0};
+  }
+
+  // get all of the valid points
+  std::vector<Eigen::Vector2f> points;
+  std::vector<int> original_indices;
+  points.reserve(scan.nrays);
+  original_indices.reserve(scan.nrays);
+  for (int i = 0; i < scan.nrays; i++) {
+    if (scan.valid[i]) {
+      points.emplace_back(scan.points[i].p[0], scan.points[i].p[1]);
+      original_indices.push_back(i);
+    }
+  }
+
+  if (points.empty()) {
+    RCLCPP_WARN(get_logger(), "No valid points in scan!");
+    return {0, 0};
+  }
+
+  float half_baseline = 0.5f * baseline;
+
+  std::vector<Eigen::Vector2f> normals;
+  normals.reserve(points.size() * 2);
+
+  // compute sequential distance of each valid point in the scan from the first point
+  std::vector<float> distances(points.size(), 0.0f);
+  for (int i = 1; i < points.size(); i++) {
+    distances[i] = distances[i - 1] + (points[i] - points[i - 1]).norm();
+  }
+
+  // calculate the normal vector of each valid point that has a valid correspondence
+  int start_idx = 0;
+  int end_idx = 0;
+  for (int i = 0; i < points.size(); i++) {
+
+    // check if correspondence is valid
+    if (!scan.corr[original_indices[i]].valid) {
+      continue;
+    }
+
+    double current_dist = distances[i];
+
+    // find the interpolated start point to measure the normal of the scan point
+    auto start_pt = points[start_idx];
+    if (current_dist > half_baseline) {
+      float target_dist = current_dist - half_baseline;
+      while (distances[start_idx] < target_dist) {
+        start_idx++;
+      }
+
+      float r = half_baseline - (current_dist - distances[start_idx]);
+      float l = distances[start_idx] - distances[start_idx - 1];
+      float w = r / l;
+      start_pt = points[start_idx - 1] * w + (1.0f - w) * points[start_idx];
+    }
+
+    // find the interpolated end point to measure the normal of the scan point
+    auto end_pt = points[end_idx];
+    if (distances.back() - current_dist > half_baseline) {
+      float target_dist = current_dist + half_baseline;
+      while (distances[end_idx] < target_dist) {
+        end_idx++;
+      }
+
+      float r = half_baseline - (distances[end_idx - 1] - current_dist);
+      float l = distances[end_idx] - distances[end_idx - 1];
+      float w = r / l;
+      end_pt = points[end_idx] * w + (1.0f - w) * points[end_idx - 1];
+    }
+
+    Eigen::Vector2f v = (end_pt - start_pt).normalized();
+    normals.emplace_back(-v[1], v[0]);
+  }
+
+  if (normals.empty()) {
+    RCLCPP_WARN(get_logger(), "No valid correspondences in scan!");
+    return {0, 0};
+  }
+
+  Eigen::Map<Eigen::Matrix<float,2,Eigen::Dynamic>> N(normals.data()->data(), 2, normals.size());
+
+  // compute the SVD of the normal vector matrix. if sigma_min << sigma_max,
+  // the pointcloud is degenerate (i.e. uninformative in a given direction)
+  auto svd = N.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
+  auto singular_values = svd.singularValues();
+  int min_idx = 0;
+  int max_idx = 1;
+  float min_val = singular_values(0);
+  float max_val = singular_values(1);
+  if (min_val > max_val) {
+    std::swap(min_idx, max_idx);
+    std::swap(min_val, max_val);
+  }
+
+  if (max_val == 0) {
+    return {0, 0};
+  }
+
+  float degeneracy = std::max(0.0001, 1.0 - std::min(1.0f, min_val / max_val));
+  Eigen::Vector2f primary_axis = svd.matrixU().col(max_idx);
+  primary_axis.normalize();
+
+  Eigen::Vector2f secondary_axis = { -primary_axis[1], primary_axis[0] };
+
+  return secondary_axis * degeneracy;
+}
+
+Eigen::Matrix2f LaserScanMatcher::getLaserRotation(const tf2::Transform& odom_pose) {
+  tf2::Transform laser_in_fixed = odom_pose * laser_from_base_;
+  tf2::Matrix3x3 fixed_from_laser_rot(laser_in_fixed.getRotation());
+  double r,p,y;
+  fixed_from_laser_rot.getRPY(r, p, y);
+  Eigen::Rotation2Df t(y);
+  return t.toRotationMatrix();
 }
 
 }  // namespace scan_tools
