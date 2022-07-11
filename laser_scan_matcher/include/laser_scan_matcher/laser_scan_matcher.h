@@ -85,6 +85,7 @@ private:
   bool publish_tf_ = false;
   bool degeneracy_check_ = false;
 
+  double tf_timeout_ = 0.1;
   double xy_cov_scale_ = 1.0;
   double xy_cov_offset_ = 0.0;
   double heading_cov_scale_ = 1.0;

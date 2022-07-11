@@ -54,6 +54,7 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher"), initi
   publish_tf_,  param("publish_tf", true, "Whether to publish tf transform from 'odom_frame' to 'base_frame'");
 
   // dynamic parameters
+  register_param(&tf_timeout_, "tf_timeout", 0.1, "TF timeout in seconds.", 0.0, 10.0);
   register_param(&degeneracy_check_, "degeneracy_check", false, "Check for degeneracy of matches along an axis");
   register_param(&degeneracy_cov_ramp_, "degeneracy_cov_ramp", 5.0, "Power to apply to [0,1] degeneracy metric prior to scaling for covariance.", 1.0, 10.0);
   register_param(&degeneracy_cov_scale_, "degeneracy_cov_scale", 1.0, "Scaling degeneracy metric to apply to position covariance along degenerate axis", 0.0, 100.0);
@@ -225,12 +226,12 @@ void LaserScanMatcher::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr
 
 bool LaserScanMatcher::getBaseToLaserTf(const std::string& frame_id) {
   try {
-      auto msg = tf_buffer_->lookupTransform(base_frame_, frame_id, rclcpp::Time(0), rclcpp::Duration(10,0));
+      auto msg = tf_buffer_->lookupTransform(base_frame_, frame_id, rclcpp::Time(0), rclcpp::Duration::from_seconds(tf_timeout_));
       tf2::fromMsg(msg.transform, base_from_laser_);
       laser_from_base_ = base_from_laser_.inverse();
   }
   catch (tf2::TransformException ex) {
-    RCLCPP_INFO(get_logger(),"Could not get initial transform of base to laser frame, %s", ex.what());
+    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "Could not get initial transform of base to laser frame, %s", ex.what());
     return false;
   }
 
@@ -253,12 +254,11 @@ bool LaserScanMatcher::getLaserInTfOdom(
   }
 
   try {
-    //                                                                          50 milliseconds
-    auto msg = tf_buffer_->lookupTransform(odom_frame_, frame_id, stamp, rclcpp::Duration(0, 50000000));
+    auto msg = tf_buffer_->lookupTransform(odom_frame_, frame_id, stamp, rclcpp::Duration::from_seconds(tf_timeout_));
     tf2::fromMsg(msg.transform, transform);
   }
   catch (tf2::TransformException ex) {
-    RCLCPP_WARN(get_logger(),"Could not get transform laser to fixed frame, %s", ex.what());
+    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "Could not get transform laser to fixed frame, %s", ex.what());
     return false;
   }
 
