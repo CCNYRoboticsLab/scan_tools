@@ -242,6 +242,16 @@ bool LaserScanMatcher::getLaserInTfOdom(
   const rclcpp::Time& stamp,
   tf2::Transform& transform)
 {
+  if (!tf_buffer_->_frameExists(odom_frame_)) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "tf frame [%s] doesn't exist yet.'", odom_frame_.c_str());
+    return false;
+  }
+
+  if (!tf_buffer_->_frameExists(frame_id)) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "tf frame [%s] doesn't exist yet.'", frame_id.c_str());
+    return false;
+  }
+
   try {
     //                                                                          50 milliseconds
     auto msg = tf_buffer_->lookupTransform(odom_frame_, frame_id, stamp, rclcpp::Duration(0, 50000000));
