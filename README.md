@@ -11,6 +11,14 @@ Scan Matcher [1] implementation.
 
  * `scan_to_cloud_converter`: converts LaserScan to PointCloud messages.
 
+License
+-----------------------------------
+
+This repo is licensed with [BSD-3-Clause](https://opensource.org/licenses/BSD-3-Clause), but depends on the version
+of [CSM](https://github.com/AndreaCensi/csm) which uses [eigen](https://eigen.tuxfamily.org/). CSM itself
+is [LGPL-3.0](https://opensource.org/licenses/LGPL-3.0), while eigen is [MPL-2.0](https://opensource.org/licenses/MPL-2.0)
+
+
 More info
 -----------------------------------
 
