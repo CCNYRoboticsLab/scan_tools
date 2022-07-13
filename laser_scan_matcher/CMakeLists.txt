@@ -9,6 +9,7 @@ find_package(laser_geometry REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -44,6 +45,7 @@ ament_target_dependencies(${PROJECT_NAME}
   nav_msgs
   rclcpp
   sensor_msgs
+  std_srvs
   tf2
   tf2_geometry_msgs
   tf2_ros
