@@ -45,7 +45,7 @@
 
 namespace scan_tools {
 
-LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher"), initialized_(false) {
+LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher") {
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
 
   // static parameters
@@ -98,6 +98,7 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher"), initi
     std::bind(&LaserScanMatcher::parametersCallback, this, std::placeholders::_1));
 
   // state variables
+  initialized_ = false;
   base_in_fixed_.setIdentity();
   prev_base_in_fixed_.setIdentity();
   keyframe_base_in_fixed_.setIdentity();
@@ -108,7 +109,8 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher"), initi
   output_.cov_x_m = nullptr;
   output_.dx_dy1_m = nullptr;
   output_.dx_dy2_m = nullptr;
-
+  is_running_ = false;
+  
   // publishers
   odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("laser_odom", rclcpp::SystemDefaultsQoS());
   pose_pub_ = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("laser_pose", rclcpp::SystemDefaultsQoS());
@@ -117,10 +119,16 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher"), initi
     tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(*this);
   }
 
-  // subscribers
-  scan_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
-    "scan", rclcpp::SensorDataQoS(), std::bind(&LaserScanMatcher::scanCallback, this, std::placeholders::_1));
+  // subscribers (scan_sub_ is initialized in the start callback)
   tf_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
+  // services
+  start_srv_ = create_service<std_srvs::srv::Trigger>(
+    "~/start", std::bind(&LaserScanMatcher::startCallback, this, std::placeholders::_1,
+                         std::placeholders::_2));
+  stop_srv_ = create_service<std_srvs::srv::Trigger>(
+    "~/stop",
+    std::bind(&LaserScanMatcher::stopCallback, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 rcl_interfaces::msg::SetParametersResult LaserScanMatcher::parametersCallback(
@@ -660,6 +668,46 @@ Eigen::Matrix2f LaserScanMatcher::getLaserRotation(const tf2::Transform& odom_po
   fixed_from_laser_rot.getRPY(r, p, y);
   Eigen::Rotation2Df t(y);
   return t.toRotationMatrix();
+}
+
+void LaserScanMatcher::startCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> req,
+                                     std::shared_ptr<std_srvs::srv::Trigger::Response> resp)
+{
+  if(is_running_){
+    resp->message = "Scan matching is already running!";
+    resp->success = false;
+    return;
+  }
+  scan_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
+    "scan", rclcpp::SensorDataQoS(), std::bind(&LaserScanMatcher::scanCallback, this, std::placeholders::_1));
+  is_running_ = true;
+  resp->success = true;
+}
+
+void LaserScanMatcher::stopCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> req,
+                                    std::shared_ptr<std_srvs::srv::Trigger::Response> resp)
+{
+  if(!is_running_){
+    resp->message = "Scan matching is not running, so it cannot be stopped.";
+    resp->success = false;
+    return;
+  }
+  scan_sub_.reset();
+  // reset state variables
+  base_in_fixed_.setIdentity();
+  prev_base_in_fixed_.setIdentity();
+  keyframe_base_in_fixed_.setIdentity();
+  prev_laser_in_tf_odom_.setIdentity();
+  input_.laser[0] = 0.0;
+  input_.laser[1] = 0.0;
+  input_.laser[2] = 0.0;
+  output_.cov_x_m = nullptr;
+  output_.dx_dy1_m = nullptr;
+  output_.dx_dy2_m = nullptr;
+  initialized_ = false;
+  
+  is_running_ = false;
+  resp->success = true;
 }
 
 }  // namespace scan_tools
