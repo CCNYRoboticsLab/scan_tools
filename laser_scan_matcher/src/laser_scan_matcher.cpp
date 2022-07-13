@@ -38,6 +38,7 @@
 #include <laser_scan_matcher/laser_scan_matcher.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <boost/assign.hpp>
+#include <tf/transform_datatypes.h>
 
 namespace scan_tools
 {
@@ -58,8 +59,9 @@ LaserScanMatcher::LaserScanMatcher(ros::NodeHandle nh, ros::NodeHandle nh_privat
 
   // **** state variables
 
-  f2b_.setIdentity();
-  f2b_kf_.setIdentity();
+  last_base_in_fixed_.setIdentity();
+  keyframe_base_in_fixed_.setIdentity();
+  last_used_odom_pose_.setIdentity();
   input_.laser[0] = 0.0;
   input_.laser[1] = 0.0;
   input_.laser[2] = 0.0;
@@ -181,6 +183,10 @@ void LaserScanMatcher::initParams()
     use_imu_ = true;
   if (!nh_private_.getParam ("use_odom", use_odom_))
     use_odom_ = true;
+  if (!nh_private_.getParam ("use_tf", use_tf_))
+    use_tf_ = true;
+  if (!nh_private_.getParam ("tf_timeout", tf_timeout_))
+    tf_timeout_ = 0.1;
   if (!nh_private_.getParam ("use_vel", use_vel_))
     use_vel_ = false;
 
@@ -341,7 +347,7 @@ void LaserScanMatcher::imuCallback(const sensor_msgs::Imu::ConstPtr& imu_msg)
   latest_imu_msg_ = *imu_msg;
   if (!received_imu_)
   {
-    last_used_imu_msg_ = *imu_msg;
+    tf::quaternionMsgToTF(imu_msg->orientation, last_used_imu_orientation_);
     received_imu_ = true;
   }
 }
@@ -352,7 +358,7 @@ void LaserScanMatcher::odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg
   latest_odom_msg_ = *odom_msg;
   if (!received_odom_)
   {
-    last_used_odom_msg_ = *odom_msg;
+    tf::poseMsgToTF(odom_msg->pose.pose, last_used_odom_pose_);
     received_odom_ = true;
   }
 }
@@ -382,7 +388,7 @@ void LaserScanMatcher::cloudCallback (const PointCloudT::ConstPtr& cloud)
   if (!initialized_)
   {
     // cache the static tf from base to laser
-    if (!getBaseToLaserTf(cloud_header.frame_id))
+    if (!getBaseLaserTransform(cloud_header.frame_id))
     {
       ROS_WARN("Skipping scan");
       return;
@@ -406,8 +412,8 @@ void LaserScanMatcher::scanCallback (const sensor_msgs::LaserScan::ConstPtr& sca
   {
     createCache(scan_msg);    // caches the sin and cos of all angles
 
-    // cache the static tf from base to laser
-    if (!getBaseToLaserTf(scan_msg->header.frame_id))
+    // cache the static transform between the base and laser
+    if (!getBaseLaserTransform(scan_msg->header.frame_id))
     {
       ROS_WARN("Skipping scan");
       return;
@@ -451,27 +457,21 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
 
   // **** estimated change since last scan
 
-  double dt = (time - last_icp_time_).toSec();
-  double pr_ch_x, pr_ch_y, pr_ch_a;
-  getPrediction(pr_ch_x, pr_ch_y, pr_ch_a, dt);
+  // get the predicted offset of the scan base pose from the last scan base pose
+  tf::Transform pred_last_base_offset = getPrediction(time);
 
-  // the predicted change of the laser's position, in the fixed frame
+  // calculate the predicted scan base pose by applying the predicted offset to the last scan base pose
+  tf::Transform pred_base_in_fixed = last_base_in_fixed_ * pred_last_base_offset;
 
-  tf::Transform pr_ch;
-  createTfFromXYTheta(pr_ch_x, pr_ch_y, pr_ch_a, pr_ch);
+  // calculate the offset between the keyframe base pose and predicted scan base pose
+  tf::Transform pred_keyframe_base_offset = keyframe_base_in_fixed_.inverse() * pred_base_in_fixed;
 
-  // account for the change since the last kf, in the fixed frame
+  // convert the predicted offset from the keyframe base frame to be in the keyframe laser frame
+  tf::Transform pred_keyframe_laser_offset = laser_from_base_ * pred_keyframe_base_offset * base_from_laser_ ;
 
-  pr_ch = pr_ch * (f2b_ * f2b_kf_.inverse());
-
-  // the predicted change of the laser's position, in the laser frame
-
-  tf::Transform pr_ch_l;
-  pr_ch_l = laser_to_base_ * f2b_.inverse() * pr_ch * f2b_ * base_to_laser_ ;
-
-  input_.first_guess[0] = pr_ch_l.getOrigin().getX();
-  input_.first_guess[1] = pr_ch_l.getOrigin().getY();
-  input_.first_guess[2] = tf::getYaw(pr_ch_l.getRotation());
+  input_.first_guess[0] = pred_keyframe_laser_offset.getOrigin().getX();
+  input_.first_guess[1] = pred_keyframe_laser_offset.getOrigin().getY();
+  input_.first_guess[2] = tf::getYaw(pred_keyframe_laser_offset.getRotation());
 
   // If they are non-Null, free covariance gsl matrices to avoid leaking memory
   if (output_.cov_x_m)
@@ -493,20 +493,20 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
   // *** scan match - using point to line icp from CSM
 
   sm_icp(&input_, &output_);
-  tf::Transform corr_ch;
+  tf::Transform meas_keyframe_base_offset;
 
   if (output_.valid)
   {
 
-    // the correction of the laser's position, in the laser frame
-    tf::Transform corr_ch_l;
-    createTfFromXYTheta(output_.x[0], output_.x[1], output_.x[2], corr_ch_l);
+    // the measured offset of the scan from the keyframe in the keyframe laser frame
+    tf::Transform meas_keyframe_laser_offset;
+    createTfFromXYTheta(output_.x[0], output_.x[1], output_.x[2], meas_keyframe_laser_offset);
 
-    // the correction of the base's position, in the base frame
-    corr_ch = base_to_laser_ * corr_ch_l * laser_to_base_;
+    // convert the measured offset from the keyframe laser frame to the keyframe base frame
+    meas_keyframe_base_offset = base_from_laser_ * meas_keyframe_laser_offset * laser_from_base_;
 
-    // update the pose in the world frame
-    f2b_ = f2b_kf_ * corr_ch;
+    // calculate the measured pose of the scan in the fixed frame
+    last_base_in_fixed_ = keyframe_base_in_fixed_ * meas_keyframe_base_offset;
 
     // **** publish
 
@@ -515,9 +515,9 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
       // unstamped Pose2D message
       geometry_msgs::Pose2D::Ptr pose_msg;
       pose_msg = boost::make_shared<geometry_msgs::Pose2D>();
-      pose_msg->x = f2b_.getOrigin().getX();
-      pose_msg->y = f2b_.getOrigin().getY();
-      pose_msg->theta = tf::getYaw(f2b_.getRotation());
+      pose_msg->x = last_base_in_fixed_.getOrigin().getX();
+      pose_msg->y = last_base_in_fixed_.getOrigin().getY();
+      pose_msg->theta = tf::getYaw(last_base_in_fixed_.getRotation());
       pose_publisher_.publish(pose_msg);
     }
     if (publish_pose_stamped_)
@@ -529,7 +529,7 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
       pose_stamped_msg->header.stamp    = time;
       pose_stamped_msg->header.frame_id = fixed_frame_;
 
-      tf::poseTFToMsg(f2b_, pose_stamped_msg->pose);
+      tf::poseTFToMsg(last_base_in_fixed_, pose_stamped_msg->pose);
 
       pose_stamped_publisher_.publish(pose_stamped_msg);
     }
@@ -538,7 +538,7 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
       // unstamped PoseWithCovariance message
       geometry_msgs::PoseWithCovariance::Ptr pose_with_covariance_msg;
       pose_with_covariance_msg = boost::make_shared<geometry_msgs::PoseWithCovariance>();
-      tf::poseTFToMsg(f2b_, pose_with_covariance_msg->pose);
+      tf::poseTFToMsg(last_base_in_fixed_, pose_with_covariance_msg->pose);
 
       if (input_.do_compute_covariance)
       {
@@ -572,7 +572,7 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
       pose_with_covariance_stamped_msg->header.stamp    = time;
       pose_with_covariance_stamped_msg->header.frame_id = fixed_frame_;
 
-      tf::poseTFToMsg(f2b_, pose_with_covariance_stamped_msg->pose.pose);
+      tf::poseTFToMsg(last_base_in_fixed_, pose_with_covariance_stamped_msg->pose.pose);
 
       if (input_.do_compute_covariance)
       {
@@ -600,24 +600,24 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
 
     if (publish_tf_)
     {
-      tf::StampedTransform transform_msg (f2b_, time, fixed_frame_, base_frame_);
+      tf::StampedTransform transform_msg (last_base_in_fixed_, time, fixed_frame_, base_frame_);
       tf_broadcaster_.sendTransform (transform_msg);
     }
   }
   else
   {
-    corr_ch.setIdentity();
+    meas_keyframe_base_offset.setIdentity();
     ROS_WARN("Error in scan matching");
   }
 
   // **** swap old and new
 
-  if (newKeyframeNeeded(corr_ch))
+  if (newKeyframeNeeded(meas_keyframe_base_offset))
   {
     // generate a keyframe
     ld_free(prev_ldp_scan_);
     prev_ldp_scan_ = curr_ldp_scan;
-    f2b_kf_ = f2b_;
+    keyframe_base_in_fixed_ = last_base_in_fixed_;
   }
   else
   {
@@ -770,81 +770,88 @@ void LaserScanMatcher::createCache (const sensor_msgs::LaserScan::ConstPtr& scan
   input_.max_reading = scan_msg->range_max;
 }
 
-bool LaserScanMatcher::getBaseToLaserTf (const std::string& frame_id)
+bool LaserScanMatcher::getBaseLaserTransform(const std::string& frame_id)
 {
-  ros::Time t = ros::Time::now();
-
-  tf::StampedTransform base_to_laser_tf;
+  tf::StampedTransform base_from_laser;
   try
   {
-    tf_listener_.waitForTransform(
-      base_frame_, frame_id, t, ros::Duration(1.0));
-    tf_listener_.lookupTransform (
-      base_frame_, frame_id, t, base_to_laser_tf);
+    tf_listener_.waitForTransform(base_frame_, frame_id, ros::Time(0), ros::Duration(tf_timeout_));
+    tf_listener_.lookupTransform (base_frame_, frame_id, ros::Time(0), base_from_laser);
   }
   catch (tf::TransformException ex)
   {
     ROS_WARN("Could not get initial transform from base to laser frame, %s", ex.what());
     return false;
   }
-  base_to_laser_ = base_to_laser_tf;
-  laser_to_base_ = base_to_laser_.inverse();
+  base_from_laser_ = base_from_laser;
+  laser_from_base_ = base_from_laser_.inverse();
 
   return true;
 }
 
-// returns the predicted change in pose (in fixed frame)
-// since the last time we did icp
-void LaserScanMatcher::getPrediction(double& pr_ch_x, double& pr_ch_y,
-                                     double& pr_ch_a, double dt)
+// returns the predicted offset from the base pose of the last scan
+tf::Transform LaserScanMatcher::getPrediction(const ros::Time& stamp)
 {
   boost::mutex::scoped_lock(mutex_);
 
   // **** base case - no input available, use zero-motion model
-  pr_ch_x = 0.0;
-  pr_ch_y = 0.0;
-  pr_ch_a = 0.0;
+  tf::Transform pred_last_base_offset = tf::Transform::getIdentity();
 
   // **** use velocity (for example from ab-filter)
   if (use_vel_)
   {
-    pr_ch_x = dt * latest_vel_msg_.linear.x;
-    pr_ch_y = dt * latest_vel_msg_.linear.y;
-    pr_ch_a = dt * latest_vel_msg_.angular.z;
+    double dt = (stamp - last_icp_time_).toSec();
+    // NOTE: this assumes the velocity is in the base frame and that the base
+    //       and laser frames share the same x,y and z axes
+    double pr_ch_x = dt * latest_vel_msg_.linear.x;
+    double pr_ch_y = dt * latest_vel_msg_.linear.y;
+    double pr_ch_a = dt * latest_vel_msg_.angular.z;
 
-    if      (pr_ch_a >= M_PI) pr_ch_a -= 2.0 * M_PI;
-    else if (pr_ch_a < -M_PI) pr_ch_a += 2.0 * M_PI;
+    createTfFromXYTheta(pr_ch_x, pr_ch_y, pr_ch_a, pred_last_base_offset);
   }
 
   // **** use wheel odometry
   if (use_odom_ && received_odom_)
   {
-    pr_ch_x = latest_odom_msg_.pose.pose.position.x -
-              last_used_odom_msg_.pose.pose.position.x;
+    // NOTE: this assumes the odometry is in the base frame
+    tf::Transform latest_odom_pose;
+    tf::poseMsgToTF(latest_odom_msg_.pose.pose, latest_odom_pose);
 
-    pr_ch_y = latest_odom_msg_.pose.pose.position.y -
-              last_used_odom_msg_.pose.pose.position.y;
+    pred_last_base_offset = last_used_odom_pose_.inverse() * latest_odom_pose;
 
-    pr_ch_a = tf::getYaw(latest_odom_msg_.pose.pose.orientation) -
-              tf::getYaw(last_used_odom_msg_.pose.pose.orientation);
-
-    if      (pr_ch_a >= M_PI) pr_ch_a -= 2.0 * M_PI;
-    else if (pr_ch_a < -M_PI) pr_ch_a += 2.0 * M_PI;
-
-    last_used_odom_msg_ = latest_odom_msg_;
+    last_used_odom_pose_ = latest_odom_pose;
   }
 
   // **** use imu
   if (use_imu_ && received_imu_)
   {
-    pr_ch_a = tf::getYaw(latest_imu_msg_.orientation) -
-              tf::getYaw(last_used_imu_msg_.orientation);
+    // NOTE: this assumes the imu is in the base frame
+    tf::Quaternion latest_imu_orientation;
+    tf::quaternionMsgToTF(latest_imu_msg_.orientation, latest_imu_orientation);
 
-    if      (pr_ch_a >= M_PI) pr_ch_a -= 2.0 * M_PI;
-    else if (pr_ch_a < -M_PI) pr_ch_a += 2.0 * M_PI;
+    tf::Quaternion imu_orientation_offset = last_used_imu_orientation_.inverse() * latest_imu_orientation;
+    pred_last_base_offset.setRotation(imu_orientation_offset);
 
-    last_used_imu_msg_ = latest_imu_msg_;
+    last_used_imu_orientation_ = latest_imu_orientation;
   }
+
+  // **** use tf
+  if (use_tf_)
+  {
+    tf::StampedTransform pred_last_base_offset_tf;
+    try
+    {
+      tf_listener_.waitForTransform(base_frame_, last_icp_time_, base_frame_, stamp, fixed_frame_, ros::Duration(tf_timeout_));
+      tf_listener_.lookupTransform (base_frame_, last_icp_time_, base_frame_, stamp, fixed_frame_, pred_last_base_offset_tf);
+      pred_last_base_offset = pred_last_base_offset_tf;
+    }
+    catch (tf::TransformException ex)
+    {
+      ROS_WARN("Could not get base to fixed frame transform, %s", ex.what());
+    }
+  }
+
+  return pred_last_base_offset;
 }
 
 void LaserScanMatcher::createTfFromXYTheta(
