@@ -778,7 +778,7 @@ bool LaserScanMatcher::getBaseLaserTransform(const std::string& frame_id)
     tf_listener_.waitForTransform(base_frame_, frame_id, ros::Time(0), ros::Duration(tf_timeout_));
     tf_listener_.lookupTransform (base_frame_, frame_id, ros::Time(0), base_from_laser);
   }
-  catch (tf::TransformException ex)
+  catch (const tf::TransformException& ex)
   {
     ROS_WARN("Could not get initial transform from base to laser frame, %s", ex.what());
     return false;
@@ -845,7 +845,7 @@ tf::Transform LaserScanMatcher::getPrediction(const ros::Time& stamp)
       tf_listener_.lookupTransform (base_frame_, last_icp_time_, base_frame_, stamp, fixed_frame_, pred_last_base_offset_tf);
       pred_last_base_offset = pred_last_base_offset_tf;
     }
-    catch (tf::TransformException ex)
+    catch (const tf::TransformException& ex)
     {
       ROS_WARN("Could not get base to fixed frame transform, %s", ex.what());
     }
