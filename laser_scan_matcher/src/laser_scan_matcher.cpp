@@ -51,7 +51,7 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher") {
   // static parameters
   base_frame_ = param("base_frame", std::string("base_link"), "Which frame to use for the robot base");
   odom_frame_ = param("odom_frame", std::string("odom"), "Which frame to track odometry in");
-  publish_tf_,  param("publish_tf", true, "Whether to publish tf transform from 'odom_frame' to 'base_frame'");
+  publish_tf_ =  param("publish_tf", true, "Whether to publish tf transform from 'odom_frame' to 'base_frame'");
 
   // dynamic parameters
   register_param(&tf_timeout_, "tf_timeout", 0.1, "TF timeout in seconds.", 0.0, 10.0);
@@ -262,7 +262,7 @@ bool LaserScanMatcher::getLaserInTfOdom(
   }
 
   try {
-    auto msg = tf_buffer_->lookupTransform(odom_frame_, frame_id, stamp, rclcpp::Duration::from_seconds(tf_timeout_));
+    auto msg = tf_buffer_->lookupTransform(odom_frame_, frame_id, rclcpp::Time(0), rclcpp::Duration::from_seconds(tf_timeout_));
     tf2::fromMsg(msg.transform, transform);
   }
   catch (tf2::TransformException ex) {
