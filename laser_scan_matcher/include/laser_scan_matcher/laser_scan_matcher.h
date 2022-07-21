@@ -88,8 +88,8 @@ class LaserScanMatcher
     tf::TransformListener    tf_listener_;
     tf::TransformBroadcaster tf_broadcaster_;
 
-    tf::Transform base_to_laser_; // static, cached
-    tf::Transform laser_to_base_; // static, cached, calculated from base_to_laser_
+    tf::Transform base_from_laser_; // static, cached
+    tf::Transform laser_from_base_; // static, cached
 
     ros::Publisher  pose_publisher_;
     ros::Publisher  pose_stamped_publisher_;
@@ -120,11 +120,14 @@ class LaserScanMatcher
     // **** What predictions are available to speed up the ICP?
     // 1) imu - [theta] from imu yaw angle - /imu topic
     // 2) odom - [x, y, theta] from wheel odometry - /odom topic
+    // 3) tf - [x, y, theta] from /tf topic
     // 3) velocity [vx, vy, vtheta], usually from ab-filter - /vel.
-    // If more than one is enabled, priority is imu > odom > velocity
+    // If more than one is enabled, priority is tf > imu > odom > velocity
 
     bool use_imu_;
     bool use_odom_;
+    bool use_tf_;
+    double tf_timeout_;
     bool use_vel_;
     bool stamped_vel_;
 
@@ -137,15 +140,15 @@ class LaserScanMatcher
     bool received_odom_;
     bool received_vel_;
 
-    tf::Transform f2b_;    // fixed-to-base tf (pose of base frame in fixed frame)
-    tf::Transform f2b_kf_; // pose of the last keyframe scan in fixed frame
+    tf::Transform last_base_in_fixed_;     // pose of the base of the last scan in fixed frame
+    tf::Transform keyframe_base_in_fixed_; // pose of the base of last keyframe scan in fixed frame
 
     ros::Time last_icp_time_;
 
     sensor_msgs::Imu latest_imu_msg_;
-    sensor_msgs::Imu last_used_imu_msg_;
+    tf::Quaternion last_used_imu_orientation_;
     nav_msgs::Odometry latest_odom_msg_;
-    nav_msgs::Odometry last_used_odom_msg_;
+    tf::Transform last_used_odom_pose_;
 
     geometry_msgs::Twist latest_vel_msg_;
 
@@ -175,12 +178,19 @@ class LaserScanMatcher
     void velStmpCallback(const geometry_msgs::TwistStamped::ConstPtr& twist_msg);
 
     void createCache (const sensor_msgs::LaserScan::ConstPtr& scan_msg);
-    bool getBaseToLaserTf (const std::string& frame_id);
+
+    /**
+     * Cache the static transform between the base and laser.
+     *
+     * @param[in] frame_id  The laser frame.
+     *
+     * @returns True if the transform was found, false otherwise.
+     */
+    bool getBaseLaserTransform(const std::string& frame_id);
 
     bool newKeyframeNeeded(const tf::Transform& d);
 
-    void getPrediction(double& pr_ch_x, double& pr_ch_y,
-                       double& pr_ch_a, double dt);
+    tf::Transform getPrediction(const ros::Time& stamp);
 
     void createTfFromXYTheta(double x, double y, double theta, tf::Transform& t);
 };
