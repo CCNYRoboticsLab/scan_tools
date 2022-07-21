@@ -193,6 +193,8 @@ class LaserScanMatcher
     tf::Transform getPrediction(const ros::Time& stamp);
 
     void createTfFromXYTheta(double x, double y, double theta, tf::Transform& t);
+
+    Eigen::Matrix2f getLaserRotation(const tf::Transform& odom_pose) const;
 };
 
 } // namespace scan_tools

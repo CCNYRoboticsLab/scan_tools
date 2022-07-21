@@ -510,6 +510,27 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
 
     // **** publish
 
+    Eigen::Matrix2f xy_cov = Eigen::Matrix2f::Zero();
+    float yaw_cov = 0.0;
+    if (input_.do_compute_covariance)
+    {
+      // get covariance from ICP
+      xy_cov(0, 0) = gsl_matrix_get(output_.cov_x_m, 0, 0);
+      xy_cov(0, 1) = gsl_matrix_get(output_.cov_x_m, 0, 1);
+      xy_cov(1, 0) = gsl_matrix_get(output_.cov_x_m, 1, 0);
+      xy_cov(1, 1) = gsl_matrix_get(output_.cov_x_m, 1, 1);
+      yaw_cov = gsl_matrix_get(output_.cov_x_m, 2, 2);
+
+      // rotate xy covariance from the keyframe into odom frame
+      auto rotation = getLaserRotation(f2b_kf_);
+      xy_cov = rotation * xy_cov * rotation.transpose();
+    }
+    else {
+      xy_cov(0, 0) = position_covariance_[0];
+      xy_cov(1, 1) = position_covariance_[1];
+      yaw_cov = orientation_covariance_[2];
+    }
+
     if (publish_pose_)
     {
       // unstamped Pose2D message
@@ -540,26 +561,13 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
       pose_with_covariance_msg = boost::make_shared<geometry_msgs::PoseWithCovariance>();
       tf::poseTFToMsg(last_base_in_fixed_, pose_with_covariance_msg->pose);
 
-      if (input_.do_compute_covariance)
-      {
-        pose_with_covariance_msg->covariance = boost::assign::list_of
-          (gsl_matrix_get(output_.cov_x_m, 0, 0)) (0)  (0)  (0)  (0)  (0)
-          (0)  (gsl_matrix_get(output_.cov_x_m, 0, 1)) (0)  (0)  (0)  (0)
-          (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
-          (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
-          (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
-          (0)  (0)  (0)  (0)  (0)  (gsl_matrix_get(output_.cov_x_m, 0, 2));
-      }
-      else
-      {
-        pose_with_covariance_msg->covariance = boost::assign::list_of
-          (static_cast<double>(position_covariance_[0])) (0)  (0)  (0)  (0)  (0)
-          (0)  (static_cast<double>(position_covariance_[1])) (0)  (0)  (0)  (0)
-          (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
-          (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
-          (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
-          (0)  (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[2]));
-      }
+      pose_with_covariance_msg->covariance = boost::assign::list_of
+        (xy_cov(0, 0)) (xy_cov(0, 1)) (0) (0) (0) (0)
+        (xy_cov(1, 0)) (xy_cov(1, 1)) (0) (0) (0) (0)
+        (0) (0) (0) (0) (0) (0)
+        (0) (0) (0) (0) (0) (0)
+        (0) (0) (0) (0) (0) (0)
+        (0) (0) (0) (0) (0) (yaw_cov);
 
       pose_with_covariance_publisher_.publish(pose_with_covariance_msg);
     }
@@ -574,26 +582,13 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
 
       tf::poseTFToMsg(last_base_in_fixed_, pose_with_covariance_stamped_msg->pose.pose);
 
-      if (input_.do_compute_covariance)
-      {
-        pose_with_covariance_stamped_msg->pose.covariance = boost::assign::list_of
-          (gsl_matrix_get(output_.cov_x_m, 0, 0)) (0)  (0)  (0)  (0)  (0)
-          (0)  (gsl_matrix_get(output_.cov_x_m, 0, 1)) (0)  (0)  (0)  (0)
-          (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
-          (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
-          (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
-          (0)  (0)  (0)  (0)  (0)  (gsl_matrix_get(output_.cov_x_m, 0, 2));
-      }
-      else
-      {
-        pose_with_covariance_stamped_msg->pose.covariance = boost::assign::list_of
-          (static_cast<double>(position_covariance_[0])) (0)  (0)  (0)  (0)  (0)
-          (0)  (static_cast<double>(position_covariance_[1])) (0)  (0)  (0)  (0)
-          (0)  (0)  (static_cast<double>(position_covariance_[2])) (0)  (0)  (0)
-          (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[0])) (0)  (0)
-          (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[1])) (0)
-          (0)  (0)  (0)  (0)  (0)  (static_cast<double>(orientation_covariance_[2]));
-      }
+      pose_with_covariance_stamped_msg->pose.covariance = boost::assign::list_of
+        (xy_cov(0, 0)) (xy_cov(0, 1)) (0) (0) (0) (0)
+        (xy_cov(1, 0)) (xy_cov(1, 1)) (0) (0) (0) (0)
+        (0) (0) (0) (0) (0) (0)
+        (0) (0) (0) (0) (0) (0)
+        (0) (0) (0) (0) (0) (0)
+        (0) (0) (0) (0) (0) (yaw_cov);
 
       pose_with_covariance_stamped_publisher_.publish(pose_with_covariance_stamped_msg);
     }
@@ -861,6 +856,15 @@ void LaserScanMatcher::createTfFromXYTheta(
   tf::Quaternion q;
   q.setRPY(0.0, 0.0, theta);
   t.setRotation(q);
+}
+
+Eigen::Matrix2f LaserScanMatcher::getLaserRotation(const tf::Transform& odom_pose) const {
+  tf::Transform laser_in_fixed = odom_pose * laser_to_base_;
+  tf::Matrix3x3 fixed_from_laser_rot(laser_in_fixed.getRotation());
+  double r,p,y;
+  fixed_from_laser_rot.getRPY(r, p, y);
+  Eigen::Rotation2Df t(y);
+  return t.toRotationMatrix();
 }
 
 } // namespace scan_tools
