@@ -522,7 +522,7 @@ void LaserScanMatcher::processScan(LDP& curr_ldp_scan, const ros::Time& time)
       yaw_cov = gsl_matrix_get(output_.cov_x_m, 2, 2);
 
       // rotate xy covariance from the keyframe into odom frame
-      auto rotation = getLaserRotation(f2b_kf_);
+      auto rotation = getLaserRotation(keyframe_base_in_fixed_);
       xy_cov = rotation * xy_cov * rotation.transpose();
     }
     else {
@@ -859,7 +859,7 @@ void LaserScanMatcher::createTfFromXYTheta(
 }
 
 Eigen::Matrix2f LaserScanMatcher::getLaserRotation(const tf::Transform& odom_pose) const {
-  tf::Transform laser_in_fixed = odom_pose * laser_to_base_;
+  tf::Transform laser_in_fixed = odom_pose * laser_from_base_;
   tf::Matrix3x3 fixed_from_laser_rot(laser_in_fixed.getRotation());
   double r,p,y;
   fixed_from_laser_rot.getRPY(r, p, y);
