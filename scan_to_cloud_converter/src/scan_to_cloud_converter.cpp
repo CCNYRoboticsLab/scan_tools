@@ -32,7 +32,7 @@
 namespace scan_tools {
 
 ScanToCloudConverter::ScanToCloudConverter() : rclcpp::Node("scan_to_cloud_converter") {
-  cloud_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("cloud", rclcpp::SystemDefaultsQoS());
+  cloud_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("cloud", 1);
 
   scan_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
     "scan", rclcpp::SensorDataQoS(), std::bind(&ScanToCloudConverter::scanCallback, this, std::placeholders::_1));

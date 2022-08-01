@@ -125,9 +125,9 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher") {
   is_running_ = false;
   
   // publishers
-  odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("laser_odom", rclcpp::SystemDefaultsQoS());
-  pose_pub_ = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("laser_pose", rclcpp::SystemDefaultsQoS());
-  keyframe_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("keyframe", rclcpp::SystemDefaultsQoS());
+  odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("laser_odom", 1);
+  pose_pub_ = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("laser_pose", 1);
+  keyframe_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("keyframe", 1);
   if (publish_tf_) {
     tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(*this);
   }
