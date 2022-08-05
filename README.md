@@ -11,7 +11,7 @@ Laser scan processing tools. The meta-package contains:
  
  * `laser_scan_matcher`: an incremental laser scan matcher, using Andrea Censi's Canonical 
 Scan Matcher (CSM) implementation [1].
-    - License: BSD-3-Clause
+    - License: BSD-3-Clause, LGPL
     - Note: CSM is LGPL-3.0 licensed and depends on either [GSL](https://www.gnu.org/software/gsl/), which is GPL-3.0 or [eigen](https://eigen.tuxfamily.org/), which is MPL-2.0, depending on the version of CSM.
 
  * `laser_scan_sparsifier`: takes in a LaserScan message and sparsifies it

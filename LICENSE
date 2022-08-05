@@ -5,7 +5,7 @@ laser_ortho_projector:
   - License: BSD-3-Clause
  
 laser_scan_matcher
-  - License: BSD-3-Clause
+  - License: BSD-3-Clause, LGPL
   - Note: The CSM dependency is LGPL-3.0 licensed and depends on either [GSL](https://www.gnu.org/software/gsl/), which is GPL-3.0 or [eigen](https://eigen.tuxfamily.org/), which is MPL-2.0, depending on the version of CSM.
 
 laser_scan_sparsifier:
