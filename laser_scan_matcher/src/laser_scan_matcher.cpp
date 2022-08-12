@@ -216,7 +216,11 @@ void LaserScanMatcher::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr
     laserScanToLDP(scan_msg, keyframe_laser_data_);
     prev_stamp_ = scan_msg->header.stamp;
     prev_laser_in_tf_odom_ = laser_in_tf_odom;
+    keyframe_base_in_fixed_ = laser_in_tf_odom;
+    base_in_fixed_ = laser_in_tf_odom;
+    prev_base_in_fixed_ = laser_in_tf_odom;
     initialized_ = true;
+    return;
   }
 
   auto pred_laser_offset = prev_laser_in_tf_odom_.inverse() * laser_in_tf_odom;
@@ -262,7 +266,12 @@ bool LaserScanMatcher::getLaserInTfOdom(
   }
 
   try {
-    auto msg = tf_buffer_->lookupTransform(odom_frame_, frame_id, rclcpp::Time(0), rclcpp::Duration::from_seconds(tf_timeout_));
+    geometry_msgs::msg::TransformStamped msg;
+    if(initialized_){
+      msg = tf_buffer_->lookupTransform(odom_frame_, frame_id, stamp - rclcpp::Duration::from_seconds(1.0/20.0), rclcpp::Duration::from_seconds(tf_timeout_));
+    }else{
+      msg = tf_buffer_->lookupTransform(odom_frame_, frame_id, stamp, rclcpp::Duration::from_seconds(tf_timeout_));
+    }
     tf2::fromMsg(msg.transform, transform);
   }
   catch (tf2::TransformException ex) {
@@ -692,6 +701,8 @@ void LaserScanMatcher::stopCallback(const std::shared_ptr<std_srvs::srv::Trigger
     resp->success = false;
     return;
   }
+
+  ld_free(keyframe_laser_data_);
   scan_sub_.reset();
   // reset state variables
   base_in_fixed_.setIdentity();
