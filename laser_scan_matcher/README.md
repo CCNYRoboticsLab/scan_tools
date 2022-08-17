@@ -34,12 +34,14 @@ IEEE International Conference on Robotics and Automation (ICRA), 2008
 | **degeneracy_cov_ramp** | `double` | Power to apply to `[0,1]` degeneracy metric prior to scaling for covariance | `5.0` | `1.0` | `10.0` |✓|
 | **degeneracy_cov_scale** | `double` | Scaling to apply to degeneracy metric for covariance along degenerate axis | `1.0` | `0.0` | `100.0` |✓|
 | **degeneracy_cov_offset** | `double` | Offset to apply to position covariance along degenerate axis | `0.0` | `0.0` | `10.0` |✓|
+| **degeneracy_threshold** | `double` | Threshold on degeneracy metric to cancel out laser correction in the degeneracy axis | `1.0` | `0.0` |`1.0` |✓|
 | **heading_cov_scale** | `double` | Scaling to apply to ICP derived heading covariance | `1.0` | `0.0` | `1e8` |✓|
 | **heading_cov_offset** | `double` | Offset to apply to ICP derived heading covariance | `0.0` | `0.0` | `10.0` |✓|
 | **min_travel_distance** | `double` | Distance in meters to trigger a new keyframe | `0.5` | `0.0` | `10.0` |✓|
 | **min_travel_heading** | `double` | Angle in degrees to trigger a new keyframe. | `30.0` | `0.0` | `180.0` |✓|
 | **odom_frame** | `string` | Which frame to track odometry in | "odom" | | |✗|
 | **publish_tf** | `bool` | Whether to publish tf transform from `odom_frame` to `base_frame` | `true` | | |✗|
+| **run_at_startup**| `bool` | Subscribe and process data at startup | `false` | | |✗|
 | **tf_timeout** | `double` | TF timeout in seconds | `0.1` | `0.0` | `10.0` |✓|
 | **xy_cov_scale** | `double` | Scaling to apply to ICP derived xy position covariance | `1.0` | `0.0` | `1e8` |✓|
 | **xy_cov_offset** | `double` | Offset to apply to ICP derived xy position covariance | `0.0` | `0.0` | `10.0` |✓|

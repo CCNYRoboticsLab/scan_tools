@@ -52,6 +52,7 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher") {
   base_frame_ = param("base_frame", std::string("base_link"), "Which frame to use for the robot base");
   odom_frame_ = param("odom_frame", std::string("odom"), "Which frame to track odometry in");
   publish_tf_ =  param("publish_tf", true, "Whether to publish tf transform from 'odom_frame' to 'base_frame'");
+  bool run_at_startup =  param("run_at_startup", false, "Subscribe and process data at startup");
 
   // dynamic parameters
   register_param(&tf_timeout_, "tf_timeout", 0.1, "TF timeout in seconds.", 0.0, 10.0);
@@ -59,6 +60,7 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher") {
   register_param(&degeneracy_cov_ramp_, "degeneracy_cov_ramp", 5.0, "Power to apply to [0,1] degeneracy metric prior to scaling for covariance.", 1.0, 10.0);
   register_param(&degeneracy_cov_scale_, "degeneracy_cov_scale", 1.0, "Scaling degeneracy metric to apply to position covariance along degenerate axis", 0.0, 100.0);
   register_param(&degeneracy_cov_offset_, "degeneracy_cov_offset", 0.0, "Offset to apply to position covariance along degenerate axis", 0.0, 10.0);
+  register_param(&degeneracy_threshold_, "degeneracy_threshold", 1.0, "Threshold on degeneracy metric to cancel out laser correction in the degeneracy axis", 0.0, 1.0);
   register_param(&xy_cov_scale_, "xy_cov_scale", 1.0, "Scaling to apply to xy position covariance", 0.0, 1e8);
   register_param(&xy_cov_offset_, "xy_cov_offset", 0.0, "Offset to apply to xy position covariance", 0.0, 10.0);
   register_param(&heading_cov_scale_, "heading_cov_scale", 1.0, "Scaling to apply to heading covariance", 0.0, 1e8);
@@ -129,6 +131,10 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher") {
   stop_srv_ = create_service<std_srvs::srv::Trigger>(
     "~/stop",
     std::bind(&LaserScanMatcher::stopCallback, this, std::placeholders::_1, std::placeholders::_2));
+
+  if (run_at_startup) {
+    start();
+  }
 }
 
 rcl_interfaces::msg::SetParametersResult LaserScanMatcher::parametersCallback(
@@ -396,10 +402,17 @@ bool LaserScanMatcher::processScan(
   if (degeneracy_check_) {
     auto degenerate_axis = checkAxisDegeneracy(*curr_laser_data, 0.1, scan_msg->header.frame_id, scan_msg->header.stamp);
     float degeneracy = degenerate_axis.norm();
+    RCLCPP_DEBUG(get_logger(), "  degeneracy: %f", degeneracy);
     if (degeneracy == 0) {
       // error condition, set degenerate covariance for both axes
+      RCLCPP_WARN(get_logger(), "Setting both axes as degenerate!");
       degenerate_cov(0, 0) = degeneracy_cov_scale_ + degeneracy_cov_offset_;
-      degenerate_cov(1, 1) = degeneracy_cov_scale_ + degeneracy_cov_offset_;;
+      degenerate_cov(1, 1) = degeneracy_cov_scale_ + degeneracy_cov_offset_;
+
+      // set the pose to the predicted pose instead of the corrected pose
+      base_in_fixed_ = pred_base_in_fixed;
+
+      RCLCPP_DEBUG(get_logger(),"  adjusted base: %lf, %lf", base_in_fixed_.getOrigin().getX(), base_in_fixed_.getOrigin().getY());
     }
     else {
       // scale the degenerate axis
@@ -413,6 +426,18 @@ bool LaserScanMatcher::processScan(
       // rotate into odom frame
       auto rotation = getLaserRotation(base_in_fixed_);
       degenerate_cov = rotation * degenerate_cov * rotation.transpose();
+    }
+
+    if (degeneracy >= degeneracy_threshold_) {
+      RCLCPP_DEBUG(get_logger(), "  degeneracy %lf >= %lf", degeneracy, degeneracy_threshold_);
+      tf2::Vector3 valid_axis = tf2::Vector3(degenerate_axis.y(), -degenerate_axis.x(), 0.0).normalized();
+
+      // project correction onto the valid axis to remove any offset from the
+      // prediction in the degenerate direction
+      tf2::Vector3 correction = base_in_fixed_.getOrigin() - pred_base_in_fixed.getOrigin();
+      tf2::Vector3 adjusted_correction = correction.dot(valid_axis) * valid_axis;
+      base_in_fixed_.setOrigin(pred_base_in_fixed.getOrigin() + adjusted_correction);
+      RCLCPP_DEBUG(get_logger(),"  adjusted base: %lf, %lf", base_in_fixed_.getOrigin().getX(), base_in_fixed_.getOrigin().getY());
     }
   }
 
@@ -471,7 +496,10 @@ bool LaserScanMatcher::processScan(
     tf_broadcaster_->sendTransform (tf_msg);
   }
 
-  if (newKeyframeNeeded(corr_ch)) {
+  // get the adjusted offset of the current frame from the keyframe
+  tf2::Transform adjusted_offset = keyframe_base_in_fixed_.inverse() * base_in_fixed_;
+
+  if (newKeyframeNeeded(adjusted_offset)) {
     RCLCPP_INFO(get_logger(),"Creating new keyframe ...");
     // generate a keyframe
     ld_free(keyframe_laser_data_);
@@ -679,6 +707,16 @@ Eigen::Matrix2f LaserScanMatcher::getLaserRotation(const tf2::Transform& odom_po
   return t.toRotationMatrix();
 }
 
+void LaserScanMatcher::start() {
+  if (is_running_) {
+    return;
+  }
+  is_running_ = true;
+
+  scan_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
+    "scan", rclcpp::SensorDataQoS(), std::bind(&LaserScanMatcher::scanCallback, this, std::placeholders::_1));
+}
+
 void LaserScanMatcher::startCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> req,
                                      std::shared_ptr<std_srvs::srv::Trigger::Response> resp)
 {
@@ -687,18 +725,13 @@ void LaserScanMatcher::startCallback(const std::shared_ptr<std_srvs::srv::Trigge
     resp->success = false;
     return;
   }
-  scan_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
-    "scan", rclcpp::SensorDataQoS(), std::bind(&LaserScanMatcher::scanCallback, this, std::placeholders::_1));
-  is_running_ = true;
+
+  start();
   resp->success = true;
 }
 
-void LaserScanMatcher::stopCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> req,
-                                    std::shared_ptr<std_srvs::srv::Trigger::Response> resp)
-{
+void LaserScanMatcher::stop() {
   if(!is_running_){
-    resp->message = "Scan matching is not running, so it cannot be stopped.";
-    resp->success = false;
     return;
   }
 
@@ -716,8 +749,20 @@ void LaserScanMatcher::stopCallback(const std::shared_ptr<std_srvs::srv::Trigger
   output_.dx_dy1_m = nullptr;
   output_.dx_dy2_m = nullptr;
   initialized_ = false;
-  
+
   is_running_ = false;
+}
+
+void LaserScanMatcher::stopCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> req,
+                                    std::shared_ptr<std_srvs::srv::Trigger::Response> resp)
+{
+  if(!is_running_){
+    resp->message = "Scan matching is not running, so it cannot be stopped.";
+    resp->success = false;
+    return;
+  }
+
+  stop();
   resp->success = true;
 }
 
