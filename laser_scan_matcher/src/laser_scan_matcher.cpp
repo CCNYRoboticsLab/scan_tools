@@ -402,7 +402,7 @@ bool LaserScanMatcher::processScan(
   if (degeneracy_check_) {
     auto degenerate_axis = checkAxisDegeneracy(*curr_laser_data, 0.1, scan_msg->header.frame_id, scan_msg->header.stamp);
     float degeneracy = degenerate_axis.norm();
-    RCLCPP_DEBUG(get_logger(), "  degeneracy: %f", degeneracy);
+    RCLCPP_INFO(get_logger(), "  degeneracy: %f", degeneracy);
     if (degeneracy == 0) {
       // error condition, set degenerate covariance for both axes
       RCLCPP_WARN(get_logger(), "Setting both axes as degenerate!");
@@ -416,7 +416,7 @@ bool LaserScanMatcher::processScan(
     }
     else {
       // scale the degenerate axis
-      Eigen::Vector2f degenerate_axis_scaled = degenerate_axis * std::pow(degeneracy, degeneracy_cov_ramp_) * degeneracy_cov_scale_;
+      Eigen::Vector2f degenerate_axis_scaled = degenerate_axis * degeneracy * degeneracy_cov_scale_;
       Eigen::Vector2f degenerate_axis_offset = degenerate_axis.normalized() * degeneracy_cov_offset_;
       degenerate_axis = degenerate_axis_scaled + degenerate_axis_offset;
 
@@ -689,7 +689,11 @@ Eigen::Vector2f LaserScanMatcher::checkAxisDegeneracy(const laser_data& scan, fl
     return {0, 0};
   }
 
-  float degeneracy = std::max(0.0001, 1.0 - std::min(1.0f, min_val / max_val));
+  // float degeneracy = std::max(0.0001, 1.0 - std::min(1.0f, min_val / max_val));
+  const float localizability = std::max(0.0001f, std::min(1.0f, min_val / max_val));
+  const float degeneracy = std::min(1.0, 1.0 / std::exp(12.0 * localizability - 2.0));
+
+
   Eigen::Vector2f primary_axis = svd.matrixU().col(max_idx);
   primary_axis.normalize();
 
