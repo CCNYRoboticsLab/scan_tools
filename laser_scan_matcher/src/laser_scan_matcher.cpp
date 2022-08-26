@@ -430,14 +430,26 @@ bool LaserScanMatcher::processScan(
 
     if (degeneracy >= degeneracy_threshold_) {
       RCLCPP_DEBUG(get_logger(), "  degeneracy %lf >= %lf", degeneracy, degeneracy_threshold_);
-      tf2::Vector3 valid_axis = tf2::Vector3(degenerate_axis.y(), -degenerate_axis.x(), 0.0).normalized();
+      // degenerate (and also the valid) axis is in the laser's coordinate frame
+      Eigen::Vector2f eig_laser_valid_axis;
+      eig_laser_valid_axis << degenerate_axis.y(), -degenerate_axis.x();
+      eig_laser_valid_axis.normalize();
+      // transform the laser_valid axis into the fixed frame
+      const Eigen::Matrix2f rotation       = getLaserRotation(base_in_fixed_);
+      Eigen::Vector2f eig_fixed_valid_axis = rotation * eig_laser_valid_axis;
+      tf2::Vector3 fixed_valid_axis;
+      fixed_valid_axis.setX(eig_fixed_valid_axis(0));
+      fixed_valid_axis.setY(eig_fixed_valid_axis(1));
+      fixed_valid_axis.setZ(0);
+      fixed_valid_axis.normalize();
 
       // project correction onto the valid axis to remove any offset from the
       // prediction in the degenerate direction
       tf2::Vector3 correction = base_in_fixed_.getOrigin() - pred_base_in_fixed.getOrigin();
-      tf2::Vector3 adjusted_correction = correction.dot(valid_axis) * valid_axis;
+      tf2::Vector3 adjusted_correction = correction.dot(fixed_valid_axis) * fixed_valid_axis;
       base_in_fixed_.setOrigin(pred_base_in_fixed.getOrigin() + adjusted_correction);
-      RCLCPP_DEBUG(get_logger(),"  adjusted base: %lf, %lf", base_in_fixed_.getOrigin().getX(), base_in_fixed_.getOrigin().getY());
+      RCLCPP_DEBUG(get_logger(), "  adjusted base: %lf, %lf", base_in_fixed_.getOrigin().getX(),
+                   base_in_fixed_.getOrigin().getY());
     }
   }
 
