@@ -41,6 +41,7 @@
 #include <vector>
 
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <geometry_msgs/msg/twist.hpp>
 #include <laser_geometry/laser_geometry.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -65,6 +66,7 @@ private:
   // Ros handle
 
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
 
   std::shared_ptr<tf2_ros::TransformListener> tf_;
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
@@ -83,6 +85,13 @@ private:
   std::string base_frame_ = "base_link";
   std::string odom_frame_ = "odom";
 
+  // **** What predictions are available to speed up the ICP?
+  // 1) tf - [dx, dy, dtheta] from /tf topic
+  // 2) velocity [vx, vy, vtheta], usually from ab-filter.
+  // If more than one is enabled, priority is tf > velocity
+  bool use_tf_ = false;
+  bool use_vel_ = false;
+  
   // Keyframe parameters
   double min_travel_distance_ = 0.5;
   double min_travel_heading_ = 30.0;
@@ -100,6 +109,7 @@ private:
   double degeneracy_cov_scale_ = 1.0;
   double degeneracy_cov_offset_ = 0.0;
   double degeneracy_threshold_ = 1.0;
+  double scan_period_ = 0.05;
 
   tf2::Transform base_from_laser_;  // static, cached
   tf2::Transform laser_from_base_;
@@ -108,6 +118,8 @@ private:
   tf2::Transform base_in_fixed_;           // fixed-to-base tf (pose of base frame in fixed frame)
   tf2::Transform prev_base_in_fixed_;      // previous fixed-to-base tf (for odometry calculation)
   tf2::Transform keyframe_base_in_fixed_;  // pose of the base in fixed frame when last keyframe is taken
+
+  geometry_msgs::msg::Twist::SharedPtr last_vel_msg_;
 
   sm_params input_;
   sm_result output_;
@@ -219,6 +231,10 @@ private:
   void createCache(const sensor_msgs::msg::LaserScan::SharedPtr& scan_msg);
 
   Eigen::Vector2f checkAxisDegeneracy(const laser_data& scan, float baseline, const std::string& laser_frame, rclcpp::Time stamp);
+
+  double saturateValue(const double value, const double max_value);
+
+  void odomCallback(nav_msgs::msg::Odometry::SharedPtr odom_msg);
 
 };  // LaserScanMatcher
 

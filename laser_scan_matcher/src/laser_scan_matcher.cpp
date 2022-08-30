@@ -52,7 +52,15 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher") {
   base_frame_ = param("base_frame", std::string("base_link"), "Which frame to use for the robot base");
   odom_frame_ = param("odom_frame", std::string("odom"), "Which frame to track odometry in");
   publish_tf_ =  param("publish_tf", true, "Whether to publish tf transform from 'odom_frame' to 'base_frame'");
+  use_tf_ = param("use_tf", true, "Whether to use tf for predicting the sensor pose");
+  use_vel_ = param("use_vel", false, "Whether to use twist messages for predicting the sensor pose");
   bool run_at_startup =  param("run_at_startup", false, "Subscribe and process data at startup");
+
+  if(use_tf_ && use_vel_){
+    // Prioritize use tf over use vel
+    RCLCPP_WARN(get_logger(), "Both use_tf and use_vel were set to true. Prioritizing use_tf and setting use_vel to false.");
+    use_vel_ = false;
+  }
 
   // dynamic parameters
   register_param(&tf_timeout_, "tf_timeout", 0.1, "TF timeout in seconds.", 0.0, 10.0);
@@ -67,6 +75,7 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher") {
   register_param(&heading_cov_offset_, "heading_cov_offset", 0.0, "Offset to apply to heading covariance", 0.0, 10.0);
   register_param(&min_travel_distance_, "min_travel_distance", 0.5, "Distance in meters to trigger a new keyframe", 0.0, 10.0);
   register_param(&min_travel_heading_, "min_travel_heading", 30.0, "Angle in degrees to trigger a new keyframe.", 0.0, 180.0);
+  register_param(&scan_period_, "scan_period", 0.05, "Nominal time between scan measurements in seconds.", 0.0, 10.0);
 
   // CSM parameters - comments copied from algos.h (by Andrea Censi)
   register_param(&input_.max_angular_correction_deg, "max_angular_correction_deg", 45.0, "Maximum angular displacement between scans.", 0.0, 90.0);
@@ -123,6 +132,8 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher") {
 
   // subscribers (scan_sub_ is initialized in the start callback)
   tf_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+  odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
+    "odom", 1, std::bind(&LaserScanMatcher::odomCallback, this, std::placeholders::_1));
 
   // services
   start_srv_ = create_service<std_srvs::srv::Trigger>(
@@ -256,6 +267,11 @@ bool LaserScanMatcher::getBaseToLaserTf(const std::string& frame_id) {
   return true;
 }
 
+double LaserScanMatcher::saturateValue(const double value, const double max_value)
+{
+  return std::copysign(std::min(std::abs(value), max_value), value);
+}
+
 bool LaserScanMatcher::getLaserInTfOdom(
   const std::string& frame_id,
   const rclcpp::Time& stamp,
@@ -271,14 +287,46 @@ bool LaserScanMatcher::getLaserInTfOdom(
     return false;
   }
 
-  try {
-    geometry_msgs::msg::TransformStamped msg;
-    if(initialized_){
-      msg = tf_buffer_->lookupTransform(odom_frame_, frame_id, stamp - rclcpp::Duration::from_seconds(1.0/20.0), rclcpp::Duration::from_seconds(tf_timeout_));
-    }else{
-      msg = tf_buffer_->lookupTransform(odom_frame_, frame_id, stamp, rclcpp::Duration::from_seconds(tf_timeout_));
+  try
+  {
+    if (initialized_)
+    {
+      // there are numerous other ways to get an initial guess, see here: 
+      // https://github.com/CCNYRoboticsLab/scan_tools/blob/b1fa784027d51f9fab0a2352728c591ad9c5df02/laser_scan_matcher/src/laser_scan_matcher.cpp#L474
+      if(use_tf_){
+        // make an initial guess using tf delta
+        rclcpp::Time source_stamp = stamp - rclcpp::Duration::from_seconds(scan_period_);
+        rclcpp::Time target_stamp = stamp - rclcpp::Duration::from_seconds(2.0 * scan_period_);
+        const auto msg =
+          tf_buffer_->lookupTransform(frame_id, target_stamp, frame_id, source_stamp, odom_frame_,
+                                      rclcpp::Duration::from_seconds(tf_timeout_));
+        tf2::Transform tf_delta;
+        tf2::fromMsg(msg.transform, tf_delta);
+        transform = prev_laser_in_tf_odom_ * tf_delta;
+      }else if(use_vel_ && last_vel_msg_){
+        const double dt = (stamp - prev_stamp_).nanoseconds() / 1e+9;
+        // NOTE: this assumes the velocity is in the base frame and that the base
+        //       and laser frames share the same x,y and z axes
+        double pr_ch_x = saturateValue(dt * last_vel_msg_->linear.x, input_.max_linear_correction);
+        double pr_ch_y = saturateValue(dt * last_vel_msg_->linear.y, input_.max_linear_correction);
+        double pr_ch_a = saturateValue(dt * last_vel_msg_->angular.z, input_.max_angular_correction_deg * M_PI / 180.0);
+        tf2::Transform vel_delta;
+        createTfFromXYTheta(pr_ch_x, pr_ch_y, pr_ch_a, vel_delta);
+        transform = prev_laser_in_tf_odom_ * vel_delta;
+      }else{
+        // base-case, identity transform
+        transform = prev_laser_in_tf_odom_;
+      }
     }
-    tf2::fromMsg(msg.transform, transform);
+    else
+    {
+      // lookup transform at current time (this produces a delay when used with the ekf but gives us
+      // the correct transform, which is needed for initalizing the pose estimate correctly)
+      geometry_msgs::msg::TransformStamped msg;
+      msg = tf_buffer_->lookupTransform(odom_frame_, frame_id, stamp,
+                                        rclcpp::Duration::from_seconds(tf_timeout_));
+      tf2::fromMsg(msg.transform, transform);
+    }
   }
   catch (tf2::TransformException ex) {
     RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "Could not get transform laser to fixed frame, %s", ex.what());
@@ -750,6 +798,7 @@ void LaserScanMatcher::stop() {
   ld_free(keyframe_laser_data_);
   scan_sub_.reset();
   // reset state variables
+  last_vel_msg_.reset();
   base_in_fixed_.setIdentity();
   prev_base_in_fixed_.setIdentity();
   keyframe_base_in_fixed_.setIdentity();
@@ -760,7 +809,7 @@ void LaserScanMatcher::stop() {
   output_.cov_x_m = nullptr;
   output_.dx_dy1_m = nullptr;
   output_.dx_dy2_m = nullptr;
-  initialized_ = false;
+  initialized_ = false;  
 
   is_running_ = false;
 }
@@ -777,6 +826,14 @@ void LaserScanMatcher::stopCallback(const std::shared_ptr<std_srvs::srv::Trigger
   stop();
   resp->success = true;
 }
+
+void LaserScanMatcher::odomCallback(nav_msgs::msg::Odometry::SharedPtr odom_msg){
+  if(!last_vel_msg_){
+    last_vel_msg_ = std::make_shared<geometry_msgs::msg::Twist>();
+  }
+  *last_vel_msg_ = odom_msg->twist.twist;
+}
+
 
 }  // namespace scan_tools
 
