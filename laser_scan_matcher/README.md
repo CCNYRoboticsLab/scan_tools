@@ -41,7 +41,7 @@ IEEE International Conference on Robotics and Automation (ICRA), 2008
 | **stamped_vel** |`bool` | Whether to subscribe to stamped twist messages | `false` | | |✗|
 | **use_imu** |`bool` | Whether to use imu messages for predicting the sensor yaw | `true` | | |✗|
 | **use_odom** |`bool` | Whether to use odom messages for predicting the sensor pose | `true` | | |✗|
-| **use_tf** |`bool` | Whether to use tf for predicting the sensor pose | `false` | | |✓|
+| **use_tf** |`bool` | Whether to use tf for predicting the sensor pose | `false` | | |✗|
 | **use_vel** |`bool` | Whether to use twist messages for predicting the sensor pose | `false` | | |✗|
 | **xy_cov_scale** | `double` | Scaling to apply to ICP derived xy position covariance | `1.0` | `0.0` | `1e8` |✓|
 | **xy_cov_offset** | `double` | Offset to apply to ICP derived xy position covariance | `0.0` | `0.0` | `10.0` |✓|

@@ -119,7 +119,13 @@ void LaserScanMatcher::initParams() {
   use_imu_ = params_.param("use_imu", true, "Whether to use imu messages for predicting the sensor yaw");
   use_odom_ = params_.param("use_odom", true, "Whether to use odom messages for predicting the sensor pose");
   use_vel_ = params_.param("use_vel", false, "Whether to use twist messages for predicting the sensor pose");
+  use_tf_ = params_.param("use_tf", false, "Whether to use tf for predicting the sensor pose");
   stamped_vel_ = params_.param("stamped_vel", false, "Whether to subscribe to stamped twist messages.");
+
+  if (use_tf_ && publish_tf_) {
+    RCLCPP_WARN(get_logger(),"'publish_tf' and 'use_tf' cannot be used together.  Disabling TF publishing ...");
+    publish_tf_ = false;
+  }
 
   // dynamic parameters
   params_.register_param(&tf_timeout_, "tf_timeout", 0.1, "TF timeout in seconds.", 0.0, 10.0);
@@ -129,7 +135,6 @@ void LaserScanMatcher::initParams() {
   params_.register_param(&heading_cov_offset_, "heading_cov_offset", 0.0, "Offset to apply to heading covariance", 0.0, 10.0);
   params_.register_param(&min_travel_distance_, "min_travel_distance", 0.5, "Distance in meters to trigger a new keyframe", 0.0, 10.0);
   params_.register_param(&min_travel_heading_, "min_travel_heading", 30.0, "Angle in degrees to trigger a new keyframe.", 0.0, 180.0);
-  params_.register_param(&use_tf_, "use_tf", false, "Whether to use tf for predicting the sensor pose");
 
   // CSM parameters - comments copied from algos.h (by Andrea Censi)
   params_.register_param(&input_.max_angular_correction_deg, "max_angular_correction_deg", 45.0, "Maximum angular displacement between scans.", 0.0, 90.0);
