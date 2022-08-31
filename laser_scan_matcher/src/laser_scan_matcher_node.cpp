@@ -36,13 +36,14 @@
  */
 
 #include <laser_scan_matcher/laser_scan_matcher.h>
+#include <rclcpp/rclcpp.hpp>
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "LaserScanMatcher");
-  ros::NodeHandle nh;
-  ros::NodeHandle nh_private("~");
-  scan_tools::LaserScanMatcher laser_scan_matcher(nh, nh_private);
-  ros::spin();
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<scan_tools::LaserScanMatcher>();
+  rclcpp::spin(node->get_node_base_interface());
+  rclcpp::shutdown();
+
   return 0;
 }

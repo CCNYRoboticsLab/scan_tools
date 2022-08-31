@@ -30,36 +30,26 @@
 #ifndef SCAN_TO_CLOUD_CONVERTER_SCAN_TO_CLOUD_CONVERTER_H
 #define SCAN_TO_CLOUD_CONVERTER_SCAN_TO_CLOUD_CONVERTER_H
 
-#include <limits>
-#include <ros/ros.h>
-#include <sensor_msgs/LaserScan.h>
-#include <pcl/point_types.h>
-#include <pcl/point_cloud.h>
-#include <pcl_ros/point_cloud.h>
+#include <laser_geometry/laser_geometry.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/laser_scan.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 
 namespace scan_tools {
 
-class ScanToCloudConverter
-{
-  typedef pcl::PointXYZ           PointT;
-  typedef pcl::PointCloud<PointT> PointCloudT;
+class ScanToCloudConverter : public rclcpp::Node {
+  public:
+
+  ScanToCloudConverter();
+  ~ScanToCloudConverter() = default;
 
   private:
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_pub_;
+  rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
 
-    ros::NodeHandle nh_;
-    ros::NodeHandle nh_private_;
+  laser_geometry::LaserProjection laser_projector_;
 
-    ros::Publisher cloud_publisher_;
-    ros::Subscriber scan_subscriber_;
-
-    PointT invalid_point_;
-
-    void scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan_msg);
- 
- public:
-
-    ScanToCloudConverter(ros::NodeHandle nh, ros::NodeHandle nh_private);
-    ~ScanToCloudConverter();
+  void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg);
 };
 
 } // namespace scan_tools
