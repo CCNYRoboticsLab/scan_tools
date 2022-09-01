@@ -247,7 +247,7 @@ void LaserScanMatcher::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr
   }
   else {
     // TODO(malban): need to reset at some point?
-    RCLCPP_WARN(get_logger(), "  failed to process scan");
+    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "Failed to process scan");
   }
 
   prev_stamp_ = scan_msg->header.stamp;
@@ -560,7 +560,7 @@ bool LaserScanMatcher::processScan(
   tf2::Transform adjusted_offset = keyframe_base_in_fixed_.inverse() * base_in_fixed_;
 
   if (newKeyframeNeeded(adjusted_offset)) {
-    RCLCPP_INFO(get_logger(),"Creating new keyframe ...");
+    RCLCPP_DEBUG(get_logger(),"Creating new keyframe ...");
     // generate a keyframe
     ld_free(keyframe_laser_data_);
     keyframe_laser_data_ = curr_laser_data;
