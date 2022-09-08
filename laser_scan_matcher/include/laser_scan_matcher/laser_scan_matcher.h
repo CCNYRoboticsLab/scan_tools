@@ -110,6 +110,8 @@ private:
   double degeneracy_cov_offset_ = 0.0;
   double degeneracy_threshold_ = 1.0;
   double scan_period_ = 0.05;
+  double linear_pred_cutoff_ = 0.75;
+  double angular_pred_cutoff_ = 1.3;
 
   tf2::Transform base_from_laser_;  // static, cached
   tf2::Transform laser_from_base_;
@@ -232,7 +234,7 @@ private:
 
   Eigen::Vector2f checkAxisDegeneracy(const laser_data& scan, float baseline, const std::string& laser_frame, rclcpp::Time stamp);
 
-  double saturateValue(const double value, const double max_value);
+  double cutOffValue(const double value, const double max_value);
 
   void odomCallback(nav_msgs::msg::Odometry::SharedPtr odom_msg);
 

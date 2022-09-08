@@ -76,6 +76,8 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher") {
   register_param(&min_travel_distance_, "min_travel_distance", 0.5, "Distance in meters to trigger a new keyframe", 0.0, 10.0);
   register_param(&min_travel_heading_, "min_travel_heading", 30.0, "Angle in degrees to trigger a new keyframe.", 0.0, 180.0);
   register_param(&scan_period_, "scan_period", 0.05, "Nominal time between scan measurements in seconds.", 0.0, 10.0);
+  register_param(&linear_pred_cutoff_, "linear_pred_cutoff", 0.75, "Max allowable x/y velocity used for rejecting velocity input to initial guess (m/s).", 0.0, 10.0);
+  register_param(&angular_pred_cutoff_, "angular_pred_cutoff", 1.3, "Max allowable angular velocity used for rejecting velocity input to initial guess (rad/s).", 0.0, 10.0);
 
   // CSM parameters - comments copied from algos.h (by Andrea Censi)
   register_param(&input_.max_angular_correction_deg, "max_angular_correction_deg", 45.0, "Maximum angular displacement between scans.", 0.0, 90.0);
@@ -267,9 +269,13 @@ bool LaserScanMatcher::getBaseToLaserTf(const std::string& frame_id) {
   return true;
 }
 
-double LaserScanMatcher::saturateValue(const double value, const double max_value)
+double LaserScanMatcher::cutOffValue(const double value, const double max_value)
 {
-  return std::copysign(std::min(std::abs(value), max_value), value);
+  if(std::abs(value) >= max_value){
+    return 0;
+  }else{
+    return value;
+  }
 }
 
 bool LaserScanMatcher::getLaserInTfOdom(
@@ -307,9 +313,10 @@ bool LaserScanMatcher::getLaserInTfOdom(
         const double dt = (stamp - prev_stamp_).nanoseconds() / 1e+9;
         // NOTE: this assumes the velocity is in the base frame and that the base
         //       and laser frames share the same x,y and z axes
-        double pr_ch_x = saturateValue(dt * last_vel_msg_->linear.x, input_.max_linear_correction);
-        double pr_ch_y = saturateValue(dt * last_vel_msg_->linear.y, input_.max_linear_correction);
-        double pr_ch_a = saturateValue(dt * last_vel_msg_->angular.z, input_.max_angular_correction_deg * M_PI / 180.0);
+        // velocities above the cutoff will be set to zero (assumes velocity input is unstable/untrustworthy)
+        double pr_ch_x = dt * cutOffValue(last_vel_msg_->linear.x, linear_pred_cutoff_);
+        double pr_ch_y = dt * cutOffValue(last_vel_msg_->linear.y, linear_pred_cutoff_);
+        double pr_ch_a = dt * cutOffValue(last_vel_msg_->angular.z, angular_pred_cutoff_);
         tf2::Transform vel_delta;
         createTfFromXYTheta(pr_ch_x, pr_ch_y, pr_ch_a, vel_delta);
         transform = prev_laser_in_tf_odom_ * vel_delta;
