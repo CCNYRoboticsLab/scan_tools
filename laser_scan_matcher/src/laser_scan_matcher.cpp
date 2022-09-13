@@ -85,9 +85,9 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher")
     &degeneracy_threshold_, "degeneracy_threshold", 1.0,
     "Threshold on degeneracy metric to cancel out laser correction in the degeneracy axis", 0.0,
     1.0);
-  register_param(&degeneracy_min_travel_distance_, "degeneracy_min_travel_distance", 0.5,
+  register_param(&degeneracy_min_travel_distance_, "degeneracy_min_travel_distance", 1.0,
                  "Distance in meters to trigger a new degeneracy axis", 0.0, 10.0);
-  register_param(&degeneracy_min_travel_heading_, "degeneracy_min_travel_heading", 30.0,
+  register_param(&degeneracy_min_travel_heading_, "degeneracy_min_travel_heading", 45.0,
                  "Angle in degrees to trigger a new degeneracy axis", 0.0, 180.0);
   register_param(&xy_cov_scale_, "xy_cov_scale", 1.0, "Scaling to apply to xy position covariance",
                  0.0, 1e8);
@@ -575,6 +575,7 @@ bool LaserScanMatcher::processScan(const sensor_msgs::msg::LaserScan::SharedPtr 
     bool update_degeneracy_axis  = newDegeneracyCalcNeeded(transform_mat) || first_process_scan_;
     if (update_degeneracy_axis)
     {
+      RCLCPP_ERROR(get_logger(), "=== Updating degeneracy axis===");
       // Get degenerate axis in laser frame
       Eigen::Vector2f degenerate_axis_laser = checkAxisDegeneracy(
         *curr_laser_data, 0.1, scan_msg->header.frame_id, scan_msg->header.stamp);
@@ -738,7 +739,7 @@ bool LaserScanMatcher::robotPoseDeltaAboveThresholds(const tf2::Transform& d,
                                                      const double min_heading_delta,
                                                      const double min_distance_delta)
 {
-  if (std::fabs(tf2::getYaw(d.getRotation())) > min_distance_delta * M_PI / 180.0)
+  if (std::fabs(tf2::getYaw(d.getRotation())) > min_heading_delta * M_PI / 180.0)
   {
     return true;
   }
