@@ -52,11 +52,12 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 
-#include <csm/csm.h>  // csm defines min and max, but Eigen complains
+#include <csm/csm.h> // csm defines min and max, but Eigen complains
 
-namespace scan_tools {
+namespace scan_tools
+{
 
-class LaserScanMatcher: public rclcpp::Node
+class LaserScanMatcher : public rclcpp::Node
 {
 public:
   LaserScanMatcher();
@@ -89,37 +90,40 @@ private:
   // 1) tf - [dx, dy, dtheta] from /tf topic
   // 2) velocity [vx, vy, vtheta], usually from ab-filter.
   // If more than one is enabled, priority is tf > velocity
-  bool use_tf_ = false;
+  bool use_tf_  = false;
   bool use_vel_ = false;
-  
+
   // Keyframe parameters
   double min_travel_distance_ = 0.5;
-  double min_travel_heading_ = 30.0;
+  double min_travel_heading_  = 30.0;
 
-  bool initialized_ = false;
-  bool publish_tf_ = false;
+  bool initialized_      = false;
+  bool publish_tf_       = false;
   bool degeneracy_check_ = false;
 
-  double tf_timeout_ = 0.1;
-  double xy_cov_scale_ = 1.0;
-  double xy_cov_offset_ = 0.0;
-  double heading_cov_scale_ = 1.0;
-  double heading_cov_offset_ = 0.0;
-  double degeneracy_cov_ramp_ = 5.0;
-  double degeneracy_cov_scale_ = 1.0;
-  double degeneracy_cov_offset_ = 0.0;
-  double degeneracy_threshold_ = 1.0;
-  double scan_period_ = 0.05;
-  double linear_pred_cutoff_ = 0.75;
-  double angular_pred_cutoff_ = 1.3;
+  double tf_timeout_                     = 0.1;
+  double xy_cov_scale_                   = 1.0;
+  double xy_cov_offset_                  = 0.0;
+  double heading_cov_scale_              = 1.0;
+  double heading_cov_offset_             = 0.0;
+  double degeneracy_cov_ramp_            = 5.0;
+  double degeneracy_cov_scale_           = 1.0;
+  double degeneracy_cov_offset_          = 0.0;
+  double degeneracy_threshold_           = 1.0;
+  double degeneracy_min_travel_distance_ = 1.0;  // m
+  double degeneracy_min_travel_heading_  = 45.0; // deg
+  double scan_period_                    = 0.05;
+  double linear_pred_cutoff_             = 0.75;
+  double angular_pred_cutoff_            = 1.3;
 
-  tf2::Transform base_from_laser_;  // static, cached
+  tf2::Transform base_from_laser_; // static, cached
   tf2::Transform laser_from_base_;
   tf2::Transform prev_laser_in_tf_odom_;
 
-  tf2::Transform base_in_fixed_;           // fixed-to-base tf (pose of base frame in fixed frame)
-  tf2::Transform prev_base_in_fixed_;      // previous fixed-to-base tf (for odometry calculation)
-  tf2::Transform keyframe_base_in_fixed_;  // pose of the base in fixed frame when last keyframe is taken
+  tf2::Transform base_in_fixed_;      // fixed-to-base tf (pose of base frame in fixed frame)
+  tf2::Transform prev_base_in_fixed_; // previous fixed-to-base tf (for odometry calculation)
+  tf2::Transform
+    keyframe_base_in_fixed_; // pose of the base in fixed frame when last keyframe is taken
 
   geometry_msgs::msg::Twist::SharedPtr last_vel_msg_;
 
@@ -141,103 +145,130 @@ private:
   std::unordered_map<std::string, int*> int_params_;
   std::unordered_map<std::string, std::string*> string_params_;
 
+  Eigen::Vector2f last_degenerate_axis_;
+  tf2::Transform last_degen_calc_base_in_fixed_; // pose of the base in fixed frame when last
+                                                 // degeneracy calculation occurred
+  bool first_process_scan_;
+
   template <class T>
-  T param(const std::string& name, const T& default_val, const std::string& description) {
-    auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
+  T param(const std::string& name, const T& default_val, const std::string& description)
+  {
+    auto descriptor        = rcl_interfaces::msg::ParameterDescriptor();
     descriptor.description = description;
-    descriptor.read_only = true;
+    descriptor.read_only   = true;
     declare_parameter(name, rclcpp::ParameterValue(default_val), descriptor);
     return get_parameter(name).get_value<T>();
   }
 
   template <class T>
-  void register_param(T* param, const std::string& name, const T& default_val, const std::string& description) {
-    auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
+  void register_param(T* param, const std::string& name, const T& default_val,
+                      const std::string& description)
+  {
+    auto descriptor        = rcl_interfaces::msg::ParameterDescriptor();
     descriptor.description = description;
-    descriptor.read_only = false;
+    descriptor.read_only   = false;
     declare_parameter(name, rclcpp::ParameterValue(default_val), descriptor);
     auto p = get_parameter(name);
     *param = p.get_value<T>();
 
-    if (p.get_type() == rclcpp::ParameterType::PARAMETER_BOOL) {
+    if (p.get_type() == rclcpp::ParameterType::PARAMETER_BOOL)
+    {
       bool_params_[name] = static_cast<bool*>(static_cast<void*>(param));
     }
-    else if (p.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+    else if (p.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE)
+    {
       double_params_[name] = static_cast<double*>(static_cast<void*>(param));
     }
-    else if (p.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
+    else if (p.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER)
+    {
       int_params_[name] = static_cast<int*>(static_cast<void*>(param));
     }
-    else {
-      RCLCPP_ERROR(get_logger(), "Unsupported dynamic parameter type: %s for parameter: %s", p.get_type_name().c_str(), name.c_str());
+    else
+    {
+      RCLCPP_ERROR(get_logger(), "Unsupported dynamic parameter type: %s for parameter: %s",
+                   p.get_type_name().c_str(), name.c_str());
     }
   }
 
-  void register_param(int* param, const std::string& name, bool default_val, const std::string& description) {
-    auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
+  void register_param(int* param, const std::string& name, bool default_val,
+                      const std::string& description)
+  {
+    auto descriptor        = rcl_interfaces::msg::ParameterDescriptor();
     descriptor.description = description;
-    descriptor.read_only = false;
+    descriptor.read_only   = false;
     declare_parameter(name, rclcpp::ParameterValue(default_val), descriptor);
-    *param = get_parameter(name).as_bool();
+    *param            = get_parameter(name).as_bool();
     int_params_[name] = param;
   }
 
-  void register_param(int* param, const std::string& name, int default_val, const std::string& description, int min, int max) {
-    auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
+  void register_param(int* param, const std::string& name, int default_val,
+                      const std::string& description, int min, int max)
+  {
+    auto descriptor        = rcl_interfaces::msg::ParameterDescriptor();
     descriptor.description = description;
-    descriptor.read_only = false;
+    descriptor.read_only   = false;
     descriptor.integer_range.resize(1);
     descriptor.integer_range[0].from_value = min;
-    descriptor.integer_range[0].to_value = max;
-    descriptor.integer_range[0].step = 0;
+    descriptor.integer_range[0].to_value   = max;
+    descriptor.integer_range[0].step       = 0;
     declare_parameter(name, default_val, descriptor);
-    *param = get_parameter(name).as_int();
+    *param            = get_parameter(name).as_int();
     int_params_[name] = param;
   }
 
-  void register_param(double* param, const std::string& name, double default_val, const std::string& description, double min, double max) {
-    auto descriptor = rcl_interfaces::msg::ParameterDescriptor();
+  void register_param(double* param, const std::string& name, double default_val,
+                      const std::string& description, double min, double max)
+  {
+    auto descriptor        = rcl_interfaces::msg::ParameterDescriptor();
     descriptor.description = description;
-    descriptor.read_only = false;
+    descriptor.read_only   = false;
     descriptor.floating_point_range.resize(1);
     descriptor.floating_point_range[0].from_value = min;
-    descriptor.floating_point_range[0].to_value = max;
-    descriptor.floating_point_range[0].step = 0;
+    descriptor.floating_point_range[0].to_value   = max;
+    descriptor.floating_point_range[0].step       = 0;
     declare_parameter(name, default_val, descriptor);
-    *param = get_parameter(name).as_double();
+    *param               = get_parameter(name).as_double();
     double_params_[name] = param;
   }
 
-  rcl_interfaces::msg::SetParametersResult parametersCallback(const std::vector<rclcpp::Parameter> &parameters);
+  rcl_interfaces::msg::SetParametersResult parametersCallback(
+    const std::vector<rclcpp::Parameter>& parameters);
 
-  bool getBaseToLaserTf (const std::string& frame_id);
-  bool getLaserInTfOdom(const std::string& frame_id, const rclcpp::Time& stamp, tf2::Transform& transform);
+  bool getBaseToLaserTf(const std::string& frame_id);
+  bool getLaserInTfOdom(const std::string& frame_id, const rclcpp::Time& stamp,
+                        tf2::Transform& transform);
   Eigen::Matrix2f getLaserRotation(const tf2::Transform& odom_pose);
 
   void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg);
-  bool processScan(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg, const tf2::Transform& pred_laser_offset);
+  bool processScan(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg,
+                   const tf2::Transform& pred_laser_offset);
   void laserScanToLDP(const sensor_msgs::msg::LaserScan::SharedPtr& scan, LDP& ldp);
   void createTfFromXYTheta(double x, double y, double theta, tf2::Transform& t);
 
   void start();
   void startCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> req,
-      std::shared_ptr<std_srvs::srv::Trigger::Response> resp);
+                     std::shared_ptr<std_srvs::srv::Trigger::Response> resp);
 
   void stop();
   void stopCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> req,
-      std::shared_ptr<std_srvs::srv::Trigger::Response> resp);
+                    std::shared_ptr<std_srvs::srv::Trigger::Response> resp);
+
+  bool robotPoseDeltaAboveThresholds(const tf2::Transform& d, const double min_heading_delta,
+                                     const double min_distance_delta);
+  bool newDegeneracyCalcNeeded(const tf2::Transform& d);
 
   bool newKeyframeNeeded(const tf2::Transform& d);
   void publishKeyframe(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg);
 
   void createCache(const sensor_msgs::msg::LaserScan::SharedPtr& scan_msg);
 
-  Eigen::Vector2f checkAxisDegeneracy(const laser_data& scan, float baseline, const std::string& laser_frame, rclcpp::Time stamp);
+  Eigen::Vector2f checkAxisDegeneracy(const laser_data& scan, float baseline,
+                                      const std::string& laser_frame, rclcpp::Time stamp);
 
   double cutOffValue(const double value, const double max_value);
 
   void odomCallback(nav_msgs::msg::Odometry::SharedPtr odom_msg);
 
-};  // LaserScanMatcher
+}; // LaserScanMatcher
 
-}  // namespace scan_tools
+} // namespace scan_tools

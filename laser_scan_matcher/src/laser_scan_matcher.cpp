@@ -85,6 +85,10 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher")
     &degeneracy_threshold_, "degeneracy_threshold", 1.0,
     "Threshold on degeneracy metric to cancel out laser correction in the degeneracy axis", 0.0,
     1.0);
+  register_param(&degeneracy_min_travel_distance_, "degeneracy_min_travel_distance", 0.5,
+                 "Distance in meters to trigger a new degeneracy axis", 0.0, 10.0);
+  register_param(&degeneracy_min_travel_heading_, "degeneracy_min_travel_heading", 30.0,
+                 "Angle in degrees to trigger a new degeneracy axis", 0.0, 180.0);
   register_param(&xy_cov_scale_, "xy_cov_scale", 1.0, "Scaling to apply to xy position covariance",
                  0.0, 1e8);
   register_param(&xy_cov_offset_, "xy_cov_offset", 0.0, "Offset to apply to xy position covariance",
@@ -170,13 +174,14 @@ LaserScanMatcher::LaserScanMatcher() : rclcpp::Node("laser_scan_matcher")
   prev_base_in_fixed_.setIdentity();
   keyframe_base_in_fixed_.setIdentity();
   prev_laser_in_tf_odom_.setIdentity();
-  input_.laser[0]  = 0.0;
-  input_.laser[1]  = 0.0;
-  input_.laser[2]  = 0.0;
-  output_.cov_x_m  = nullptr;
-  output_.dx_dy1_m = nullptr;
-  output_.dx_dy2_m = nullptr;
-  is_running_      = false;
+  input_.laser[0]     = 0.0;
+  input_.laser[1]     = 0.0;
+  input_.laser[2]     = 0.0;
+  output_.cov_x_m     = nullptr;
+  output_.dx_dy1_m    = nullptr;
+  output_.dx_dy2_m    = nullptr;
+  is_running_         = false;
+  first_process_scan_ = true;
 
   // publishers
   odom_pub_     = create_publisher<nav_msgs::msg::Odometry>("laser_odom", 1);
@@ -309,12 +314,13 @@ void LaserScanMatcher::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr
     }
 
     laserScanToLDP(scan_msg, keyframe_laser_data_);
-    prev_stamp_             = scan_msg->header.stamp;
-    prev_laser_in_tf_odom_  = laser_in_tf_odom;
-    keyframe_base_in_fixed_ = laser_in_tf_odom;
-    base_in_fixed_          = laser_in_tf_odom;
-    prev_base_in_fixed_     = laser_in_tf_odom;
-    initialized_            = true;
+    prev_stamp_                    = scan_msg->header.stamp;
+    prev_laser_in_tf_odom_         = laser_in_tf_odom;
+    keyframe_base_in_fixed_        = laser_in_tf_odom;
+    base_in_fixed_                 = laser_in_tf_odom;
+    prev_base_in_fixed_            = laser_in_tf_odom;
+    last_degen_calc_base_in_fixed_ = laser_in_tf_odom;
+    initialized_                   = true;
     return;
   }
 
@@ -563,9 +569,23 @@ bool LaserScanMatcher::processScan(const sensor_msgs::msg::LaserScan::SharedPtr 
   Eigen::Matrix2f degenerate_cov = Eigen::Matrix2f::Zero();
   if (degeneracy_check_)
   {
-    auto degenerate_axis =
-      checkAxisDegeneracy(*curr_laser_data, 0.1, scan_msg->header.frame_id, scan_msg->header.stamp);
-    float degeneracy = degenerate_axis.norm();
+    Eigen::Vector2f degenerate_axis_fixed = last_degenerate_axis_;
+    // get transform mat. between the pose at the last degeneracy update and the current pose
+    tf2::Transform transform_mat = last_degen_calc_base_in_fixed_.inverse() * base_in_fixed_;
+    bool update_degeneracy_axis  = newDegeneracyCalcNeeded(transform_mat) || first_process_scan_;
+    if (update_degeneracy_axis)
+    {
+      // Get degenerate axis in laser frame
+      Eigen::Vector2f degenerate_axis_laser = checkAxisDegeneracy(
+        *curr_laser_data, 0.1, scan_msg->header.frame_id, scan_msg->header.stamp);
+      // Transform degenerate axis into fixed/odom frame
+      const Eigen::Matrix2f rotation = getLaserRotation(base_in_fixed_);
+      degenerate_axis_fixed          = rotation * degenerate_axis_laser;
+      last_degenerate_axis_          = degenerate_axis_fixed;
+      last_degen_calc_base_in_fixed_ = base_in_fixed_;
+    }
+    float degeneracy = degenerate_axis_fixed.norm();
+
     RCLCPP_DEBUG(get_logger(), "  degeneracy: %f", degeneracy);
     if (degeneracy == 0)
     {
@@ -584,29 +604,22 @@ bool LaserScanMatcher::processScan(const sensor_msgs::msg::LaserScan::SharedPtr 
     {
       // scale the degenerate axis
       Eigen::Vector2f degenerate_axis_scaled =
-        degenerate_axis * std::pow(degeneracy, degeneracy_cov_ramp_) * degeneracy_cov_scale_;
+        degenerate_axis_fixed * std::pow(degeneracy, degeneracy_cov_ramp_) * degeneracy_cov_scale_;
       Eigen::Vector2f degenerate_axis_offset =
-        degenerate_axis.normalized() * degeneracy_cov_offset_;
-      degenerate_axis = degenerate_axis_scaled + degenerate_axis_offset;
+        degenerate_axis_fixed.normalized() * degeneracy_cov_offset_;
+      degenerate_axis_fixed = degenerate_axis_scaled + degenerate_axis_offset;
 
-      // create covariance matrix
-      degenerate_cov = degenerate_axis * degenerate_axis.transpose();
-
-      // rotate into odom frame
-      auto rotation  = getLaserRotation(base_in_fixed_);
-      degenerate_cov = rotation * degenerate_cov * rotation.transpose();
+      // create covariance matrix in odom farme
+      degenerate_cov = degenerate_axis_fixed * degenerate_axis_fixed.transpose();
     }
 
     if (degeneracy >= degeneracy_threshold_)
     {
       RCLCPP_DEBUG(get_logger(), "  degeneracy %lf >= %lf", degeneracy, degeneracy_threshold_);
-      // degenerate (and also the valid) axis is in the laser's coordinate frame
-      Eigen::Vector2f eig_laser_valid_axis;
-      eig_laser_valid_axis << degenerate_axis.y(), -degenerate_axis.x();
-      eig_laser_valid_axis.normalize();
-      // transform the laser_valid axis into the fixed frame
-      const Eigen::Matrix2f rotation       = getLaserRotation(base_in_fixed_);
-      Eigen::Vector2f eig_fixed_valid_axis = rotation * eig_laser_valid_axis;
+      // valid axis is in the odom's coordinate frame
+      Eigen::Vector2f eig_fixed_valid_axis;
+      eig_fixed_valid_axis << degenerate_axis_fixed.y(), -degenerate_axis_fixed.x();
+      // valid axis in the fixed frame
       tf2::Vector3 fixed_valid_axis;
       fixed_valid_axis.setX(eig_fixed_valid_axis(0));
       fixed_valid_axis.setY(eig_fixed_valid_axis(1));
@@ -706,23 +719,36 @@ bool LaserScanMatcher::processScan(const sensor_msgs::msg::LaserScan::SharedPtr 
   }
 
   prev_base_in_fixed_ = base_in_fixed_;
+  first_process_scan_ = false;
   return true;
 }
 
 bool LaserScanMatcher::newKeyframeNeeded(const tf2::Transform& d)
 {
-  if (std::fabs(tf2::getYaw(d.getRotation())) > min_travel_heading_ * M_PI / 180.0)
+  return robotPoseDeltaAboveThresholds(d, min_travel_heading_, min_travel_distance_);
+}
+
+bool LaserScanMatcher::newDegeneracyCalcNeeded(const tf2::Transform& d)
+{
+  return robotPoseDeltaAboveThresholds(d, degeneracy_min_travel_heading_,
+                                       degeneracy_min_travel_distance_);
+}
+
+bool LaserScanMatcher::robotPoseDeltaAboveThresholds(const tf2::Transform& d,
+                                                     const double min_heading_delta,
+                                                     const double min_distance_delta)
+{
+  if (std::fabs(tf2::getYaw(d.getRotation())) > min_distance_delta * M_PI / 180.0)
   {
     return true;
   }
 
   double x = d.getOrigin().getX();
   double y = d.getOrigin().getY();
-  if (x * x + y * y > min_travel_distance_ * min_travel_distance_)
+  if (x * x + y * y > min_distance_delta * min_distance_delta)
   {
     return true;
   }
-
   return false;
 }
 
