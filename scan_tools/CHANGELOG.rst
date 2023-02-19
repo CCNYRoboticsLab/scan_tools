@@ -2,6 +2,16 @@
 Changelog for package scan_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.4.0 (2023-02-19)
+------------------
+* Fix: covariance calculations `#78 <https://github.com/ccny-ros-pkg/scan_tools/issues/78>`_
+* Fix: Refactor and correct prediction code and transforms. `#79 <https://github.com/ccny-ros-pkg/scan_tools/issues/79>`_
+* Fix: the laser frame_id in the demo bag to remove the leading slash. `#77 <https://github.com/ccny-ros-pkg/scan_tools/issues/77>`_
+* Fix: Built for ROS1 `#82 <https://github.com/ccny-ros-pkg/scan_tools/issues/82>`_
+* Fix: missing type placeholder `#62 <https://github.com/ccny-ros-pkg/scan_tools/issues/62>`_
+* Maintenance: Clarify licenses. `#80 <https://github.com/ccny-ros-pkg/scan_tools/issues/80>`_
+* Contributors: Marc Alban, Jochen Sprickerhof
+
 0.3.3 (2021-02-15)
 ------------------
 * First release for ROS Melodic, Noetic (supporting Ubuntu 18.04, 20.04)

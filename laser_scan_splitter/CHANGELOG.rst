@@ -2,6 +2,9 @@
 Changelog for package laser_scan_splitter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.4.0 (2023-02-19)
+------------------
+
 0.3.3 (2021-02-15)
 ------------------
 * update to use non deprecated pluginlib macro

@@ -2,6 +2,11 @@
 Changelog for package scan_to_cloud_converter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.4.0 (2023-02-19)
+------------------
+* Maintenance: Clarify licenses. `#80 <https://github.com/ccny-ros-pkg/scan_tools/issues/80>`_
+* Contributors: Marc Alban
+
 0.3.3 (2021-02-15)
 ------------------
 
