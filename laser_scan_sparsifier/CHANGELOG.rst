@@ -2,6 +2,11 @@
 Changelog for package laser_scan_sparsifier
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.4.0 (2023-02-19)
+------------------
+* Fix: missing type placeholder `#62 <https://github.com/ccny-ros-pkg/scan_tools/issues/62>`_
+* Contributors:  Jochen Sprickerhof
+
 0.3.3 (2021-02-15)
 ------------------
 * update to use non deprecated pluginlib macro
