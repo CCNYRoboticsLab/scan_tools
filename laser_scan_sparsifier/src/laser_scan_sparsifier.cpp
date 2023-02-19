@@ -43,7 +43,7 @@ LaserScanSparsifier::LaserScanSparsifier(ros::NodeHandle nh, ros::NodeHandle nh_
     step_ = 2;
 
   ROS_ASSERT_MSG(step_ > 0,
-    "step parameter is set to %, must be > 0", step_);
+    "step parameter is set to %d, must be > 0", step_);
 
   // **** advertise topics
 
