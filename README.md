@@ -7,19 +7,29 @@ Overview
 Laser scan processing tools. The meta-package contains:
 
  * `laser_ortho_projector`: calculates orthogonal projections of LaserScan messages
+    - License: BSD-3-Clause
  
  * `laser_scan_matcher`: an incremental laser scan matcher, using Andrea Censi's Canonical 
-Scan Matcher implementation. It downloads and installs Andrea Censi's Canonical Scan Matcher [1] locally.
+Scan Matcher (CSM) implementation [1].
+    - License: BSD-3-Clause, LGPL
+    - Note: CSM is LGPL-3.0 licensed and depends on either [GSL](https://www.gnu.org/software/gsl/), which is GPL-3.0 or [eigen](https://eigen.tuxfamily.org/), which is MPL-2.0, depending on the version of CSM.
 
  * `laser_scan_sparsifier`: takes in a LaserScan message and sparsifies it
+    - License: BSD-3-Clause
 
  * `laser_scan_splitter`:  takes in a LaserScan message and splits 
 it into a number of other LaserScan messages 
+    - License: BSD-3-Clause
 
  * `ncd_parser`: reads in .alog data files from the New College Dataset [2]
 and broadcasts scan and odometry messages to ROS.
+    - License: BSD-3-Clause
+
+ * `polar_scan_matcher`: used to produce a pose estimate for a robot when no odometry is available.
+    - License: GPL-2.0
 
  * `scan_to_cloud_converter`: converts LaserScan to PointCloud messages.
+    - License: BSD-3-Clause
 
 Installing
 -----------------------------------

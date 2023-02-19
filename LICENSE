@@ -1,0 +1,24 @@
+The packages in this repository are covered by different licenses. See the 
+LICENSE files in the individual packages for more details.
+
+laser_ortho_projector:
+  - License: BSD-3-Clause
+ 
+laser_scan_matcher
+  - License: BSD-3-Clause, LGPL
+  - Note: The CSM dependency is LGPL-3.0 licensed and depends on either [GSL](https://www.gnu.org/software/gsl/), which is GPL-3.0 or [eigen](https://eigen.tuxfamily.org/), which is MPL-2.0, depending on the version of CSM.
+
+laser_scan_sparsifier:
+  - License: BSD-3-Clause
+
+laser_scan_splitter:
+  - License: BSD-3-Clause
+
+ncd_parser:
+  - License: BSD-3-Clause
+
+polar_scan_matcher:
+  - License: GPL-2.0
+
+scan_to_cloud_converter
+  - License: BSD-3-Clause
