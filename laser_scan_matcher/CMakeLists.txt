@@ -13,7 +13,7 @@ set( ROS_CXX_DEPENDENCIES
   nav_msgs)
 
 # Find catkin and all required ROS components
-find_package(catkin REQUIRED COMPONENTS ${ROS_CXX_DEPENDENCIES} rostest)
+find_package(catkin REQUIRED COMPONENTS ${ROS_CXX_DEPENDENCIES})
 find_package(PCL REQUIRED QUIET)
 
 # Find csm project
@@ -69,6 +69,7 @@ install(DIRECTORY demo
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION} )
 
 if(CATKIN_ENABLE_TESTING)
+  find_package(rostest)
   add_rostest(test/run.test)
   add_rostest(test/covariance.test)
 endif()
